@@ -10,7 +10,8 @@ services:
       - .env
     restart: always
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     cap_add:
       - SYS_ADMIN
   db:
