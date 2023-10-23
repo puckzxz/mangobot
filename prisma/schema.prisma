@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Guild {
+  id   String @id
+  name String
+
+  // The Discord text channel ID where series updates will be posted
+  updatesChannelId String? @map("updates_channel_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  series GuildsSeries[]
+
+  @@index([id], name: "index_guilds_guild_id")
+  @@index([updatesChannelId], name: "index_guilds_updates_channel_id")
+  @@map("guilds")
+}
+
+enum SeriesSource {
+  MangaSee
+  MangaDex
+  AsuraScans
+}
+
+model Series {
+  id            String @id @default(uuid())
+  name          String @unique
+  url           String @unique
+  latestChapter String @default("0") @map("latest_chapter")
+
+  // Relevant for sites like MangaDex where we can use the official API
+  sourceId      String?  @map("source_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  lastCheckedAt DateTime @default(now()) @map("last_checked_at")
+
+  source SeriesSource
+
+  guilds GuildsSeries[]
+
+  @@map("series")
+}
+
+model GuildsSeries {
+  id        String   @id @default(uuid())
+  guildId   String   @map("guild_id")
+  seriesId  String   @map("series_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  Guild  Guild  @relation(fields: [guildId], references: [id])
+  Series Series @relation(fields: [seriesId], references: [id])
+
+  @@unique([guildId, seriesId])
+  @@index([guildId], name: "index_guilds_series_guild_id")
+  @@index([seriesId], name: "index_guilds_series_series_id")
+  @@map("guilds_series")
+}

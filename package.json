@@ -1,0 +1,25 @@
+{
+  "name": "mangobot",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "prettier": "^3.0.3",
+    "prisma": "^5.4.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "5.4.2",
+    "@types/node-schedule": "^2.1.2",
+    "discord.js": "^14.13.0",
+    "node-schedule": "^2.1.1",
+    "puppeteer": "^21.4.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
