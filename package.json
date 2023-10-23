@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
-    "typecheck": "tsc --project ./tsconfig.json"
+    "typecheck": "tsc --project ./tsconfig.json",
+    "migrate": "prisma migrate deploy"
   },
   "devDependencies": {
     "bun-types": "latest",
