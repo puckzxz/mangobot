@@ -3,9 +3,8 @@ import client from "./client";
 import prisma from "./prisma";
 import fs from "fs";
 import { Command } from "./types/command";
-import { dispatchToSidecar } from "./dispatcher";
-import { ScraperResult } from "./types/scraper";
 import schedule from "node-schedule";
+import fetchManga from "./fetch-manga";
 
 const commands = new Map<string, Command>();
 
@@ -69,15 +68,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
   const series = await prisma.series.findMany({});
 
   for (const serie of series) {
-    const data = await dispatchToSidecar<ScraperResult[]>({
-      type: "scrape",
-      data: [
-        {
-          url: serie.url,
-          source: serie.source,
-        },
-      ],
-    });
+    const data = await fetchManga({ url: serie.url, source: serie.source });
 
     if (!data || data.length === 0) {
       console.log("Something went wrong");

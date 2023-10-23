@@ -1,19 +1,8 @@
 import { SeriesSource } from "@prisma/client";
-import { dispatchToSidecar } from "../dispatcher";
 import { Command } from "../types/command";
-import { ScraperResult } from "../types/scraper";
-
-const tryDetermineSource = (url: string): SeriesSource | null => {
-  if (url.startsWith("https://mangasee123.com")) {
-    return SeriesSource.MangaSee;
-  }
-
-  if (url.startsWith("https://asura")) {
-    return SeriesSource.AsuraScans;
-  }
-
-  return null;
-};
+import fetchManga from "../fetch-manga";
+import tryDetermineSource from "../utils/try-to-determine-series-source";
+import extractMangadexId from "../utils/extract-mangadex-id";
 
 const command: Command = {
   name: "add",
@@ -37,15 +26,7 @@ const command: Command = {
       return;
     }
 
-    const data = await dispatchToSidecar<ScraperResult[]>({
-      type: "scrape",
-      data: [
-        {
-          url,
-          source: seriesSource,
-        },
-      ],
-    });
+    const data = await fetchManga({ url, source: seriesSource });
 
     if (!data) {
       msg.channel.send("Something went wrong");
@@ -68,12 +49,14 @@ const command: Command = {
       update: {
         latestChapter,
         url: seriesUrl,
+        sourceId: extractMangadexId(seriesUrl),
         source,
       },
       create: {
         name: title,
         latestChapter,
         url: seriesUrl,
+        sourceId: extractMangadexId(seriesUrl),
         source,
       },
     });
