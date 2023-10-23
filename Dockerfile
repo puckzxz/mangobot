@@ -1,8 +1,9 @@
 FROM ghcr.io/puppeteer/puppeteer:20.8.0
 WORKDIR /app
 # Install dependencies
-COPY --chown=pptruser:pptruser package*.json yarn.lock .env ./
-RUN yarn
+COPY --chown=pptruser:pptruser package*.json pnpm-lock.yaml .env ./
+RUN npm install -g pnpm
+RUN pnpm install
 
 # Copy app files
 COPY --chown=pptruser:pptruser . . 
