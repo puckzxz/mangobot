@@ -4,7 +4,7 @@ import prisma from "./prisma";
 import fs from "fs";
 import { Command } from "./types/command";
 import { dispatchToSidecar } from "./dispatcher";
-import { ScraperResult } from "./types/scraper-result";
+import { ScraperResult } from "./types/scraper";
 import schedule from "node-schedule";
 
 const commands = new Map<string, Command>();

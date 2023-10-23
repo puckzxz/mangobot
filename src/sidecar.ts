@@ -33,10 +33,16 @@ switch (input.type) {
       const { url, source } = item;
       switch (source) {
         case SeriesSource.MangaSee:
-          result = await mangasee.scrape(browser, [url]);
+          result = await mangasee.scrape({
+            browser,
+            urls: [url],
+          });
           break;
         case SeriesSource.AsuraScans:
-          result = await asura.scrape(browser, [url]);
+          result = await asura.scrape({
+            browser,
+            urls: [url],
+          });
           break;
         default:
           break;

@@ -1,7 +1,7 @@
 import { SeriesSource } from "@prisma/client";
 import { dispatchToSidecar } from "../dispatcher";
 import { Command } from "../types/command";
-import { ScraperResult } from "../types/scraper-result";
+import { ScraperResult } from "../types/scraper";
 
 const tryDetermineSource = (url: string): SeriesSource | null => {
   if (url.startsWith("https://mangasee123.com")) {

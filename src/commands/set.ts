@@ -1,6 +1,4 @@
-import { dispatchToSidecar } from "../dispatcher";
 import { Command } from "../types/command";
-import { ScraperResult } from "../types/scraper-result";
 
 const command: Command = {
   name: "set",
