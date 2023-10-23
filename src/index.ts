@@ -9,6 +9,8 @@ import schedule from "node-schedule";
 
 const commands = new Map<string, Command>();
 
+commands.foo
+
 client.on(Events.ClientReady, (client) => {
   console.log(`Logged in as ${client.user?.tag}!`);
   client.guilds.cache.forEach(async (guild) => {
