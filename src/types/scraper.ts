@@ -1,4 +1,5 @@
 import { SeriesSource } from "@prisma/client";
+import { Browser } from "puppeteer";
 
 export interface ScraperResult {
   title: string;
@@ -6,4 +7,9 @@ export interface ScraperResult {
   chapterUrl: string;
   latestChapter: string;
   source: SeriesSource;
+}
+
+export interface ScraperArgs {
+  browser: Browser;
+  urls: string[];
 }

@@ -79,7 +79,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
       ],
     });
 
-    if (!data) {
+    if (!data || data.length === 0) {
       console.log("Something went wrong");
       return;
     }
@@ -91,9 +91,9 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
       return;
     }
 
-    const { latestChapter } = returnedSeries;
-
-    if (parseInt(latestChapter, 10) > parseInt(serie.latestChapter, 10)) {
+    // Parse float here since sometimes we'll have partial chapters
+    // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse
+    if (parseFloat(returnedSeries.latestChapter) > parseFloat(serie.latestChapter)) {
       const guildSeries = await prisma.guildsSeries.findMany({
         where: {
           seriesId: serie.id,
@@ -118,7 +118,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
           id: serie.id,
         },
         data: {
-          latestChapter,
+          latestChapter: returnedSeries.latestChapter,
         },
       });
     }

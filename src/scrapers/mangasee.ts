@@ -1,9 +1,9 @@
 import { Browser } from "puppeteer";
 import { SeriesSource } from "@prisma/client";
-import { ScraperResult } from "../types/scraper-result";
+import { ScraperResult, ScraperArgs } from "../types/scraper";
 
 export default {
-  async scrape(browser: Browser, urls: string[]): Promise<ScraperResult[]> {
+  async scrape({ browser, urls }: ScraperArgs): Promise<ScraperResult[]> {
     const page = await browser.newPage();
     await page.setCacheEnabled(false);
     let series: any[] = [];
