@@ -113,10 +113,21 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
           lastCheckedAt: new Date(),
         },
       });
+    } else {
+      await prisma.series.update({
+        where: {
+          id: serie.id,
+        },
+        data: {
+          lastCheckedAt: new Date(),
+        },
+      });
     }
   }
 
-  console.log(`Finished checking for updates at ${new Date().toISOString()}, next check at ${job.nextInvocation().toISOString()}`);
+  console.log(
+    `Finished checking for updates at ${new Date().toISOString()}, next check at ${job.nextInvocation().toISOString()}`
+  );
 });
 
 job.invoke();
