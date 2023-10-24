@@ -5,6 +5,7 @@ import mangasee from "./scrapers/mangasee";
 import asura from "./scrapers/asura";
 import { Task } from "./types/task";
 import { SeriesSource } from "@prisma/client";
+import { ScraperResult } from "./types/scraper";
 puppeteer.use(StealthPlugin());
 
 const puppeteerArgs = [
@@ -25,34 +26,35 @@ const rawData = args[0];
 
 const input = decode(rawData) as Task;
 
-let result = null;
+let results: ScraperResult[] = [];
 
 switch (input.type) {
   case "scrape":
-    for (const item of input.data) {
-      const { url, source } = item;
-      switch (source) {
-        case SeriesSource.MangaSee:
-          result = await mangasee.scrape({
-            browser,
-            urls: [url],
-          });
-          break;
-        case SeriesSource.AsuraScans:
-          result = await asura.scrape({
-            browser,
-            urls: [url],
-          });
-          break;
-        default:
-          break;
-      }
+    const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
+    const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
+
+    if (mangaseeSeries.length > 0) {
+      const mangaseeResults = await mangasee.scrape({
+        browser,
+        urls: mangaseeSeries.map((item) => item.url),
+      });
+
+      results.push(...mangaseeResults);
+    }
+
+    if (asuraSeries.length > 0) {
+      const asuraResults = await asura.scrape({
+        browser,
+        urls: asuraSeries.map((item) => item.url),
+      });
+
+      results.push(...asuraResults);
     }
     break;
   default:
     break;
 }
 
-Bun.write(Bun.stdout, encode(result));
+Bun.write(Bun.stdout, encode(results));
 
 process.exit(0);
