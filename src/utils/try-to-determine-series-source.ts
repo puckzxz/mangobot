@@ -1,6 +1,6 @@
 import { SeriesSource } from "@prisma/client";
 
-const tryToDetermineSource = (url: string): SeriesSource | null => {
+export const tryToDetermineSeriesSource = (url: string): SeriesSource | null => {
   if (url.startsWith("https://mangasee123.com")) {
     return SeriesSource.MangaSee;
   }
@@ -15,5 +15,3 @@ const tryToDetermineSource = (url: string): SeriesSource | null => {
 
   return null;
 };
-
-export default tryToDetermineSource;

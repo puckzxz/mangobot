@@ -1,8 +1,8 @@
-import tryDetermineSource from "./try-to-determine-series-source";
+import { tryToDetermineSeriesSource } from "./try-to-determine-series-source";
 import { SeriesSource } from "@prisma/client";
 
 const extractMangadexId = (url: string): string | null => {
-  if (tryDetermineSource(url) !== SeriesSource.MangaDex) {
+  if (tryToDetermineSeriesSource(url) !== SeriesSource.MangaDex) {
     return null;
   }
 

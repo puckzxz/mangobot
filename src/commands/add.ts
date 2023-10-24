@@ -1,7 +1,7 @@
 import { SeriesSource } from "@prisma/client";
 import { Command } from "../types/command";
 import fetchManga from "../fetch-manga";
-import tryDetermineSource from "../utils/try-to-determine-series-source";
+import { tryToDetermineSeriesSource } from "../utils/try-to-determine-series-source";
 import extractMangadexId from "../utils/extract-mangadex-id";
 
 const command: Command = {
@@ -9,7 +9,7 @@ const command: Command = {
   description: "Add a manga to the database",
   group: "manga",
   usage: "add <url>",
-  run: async ({ client, msg, prisma }, args) => {
+  run: async ({ msg, prisma }, args) => {
     if (!args) {
       msg.channel.send("Please provide a url");
       return;
@@ -19,14 +19,19 @@ const command: Command = {
 
     const message = await msg.channel.send(`Adding <${url}> to the database...`);
 
-    const seriesSource = tryDetermineSource(url);
+    const seriesSource = tryToDetermineSeriesSource(url);
 
     if (!seriesSource) {
       msg.channel.send("Could not determine source");
       return;
     }
 
-    const data = await fetchManga({ url, source: seriesSource });
+    const data = await fetchManga([
+      {
+        url: url,
+        source: seriesSource,
+      },
+    ]);
 
     if (!data) {
       msg.channel.send("Something went wrong");

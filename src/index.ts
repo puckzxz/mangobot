@@ -67,40 +67,40 @@ client.on(Events.MessageCreate, async (msg) => {
 const job = schedule.scheduleJob("*/30 * * * *", async () => {
   const series = await prisma.series.findMany({});
 
-  for (const serie of series) {
-    const data = await fetchManga({ url: serie.url, source: serie.source });
+  const guildsSeries = await prisma.guildsSeries.findMany({
+    where: {},
+    include: {
+      Guild: true,
+    },
+  });
 
-    if (!data || data.length === 0) {
-      console.log("Something went wrong");
-      return;
+  const seriesUpdates = await fetchManga(
+    series.map((s) => ({
+      url: s.url,
+      source: s.source,
+    }))
+  );
+
+  for (const update of seriesUpdates) {
+    const serie = series.find((s) => s.name === update.title);
+    if (!serie) {
+      // This should never happen :^)
+      continue;
     }
-
-    const returnedSeries = data[0];
-
-    if (!returnedSeries) {
-      console.log("Something else went wrong");
-      return;
-    }
-
     // Parse float here since sometimes we'll have partial chapters
     // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse
-    if (parseFloat(returnedSeries.latestChapter) > parseFloat(serie.latestChapter)) {
-      const guildSeries = await prisma.guildsSeries.findMany({
-        where: {
-          seriesId: serie.id,
-        },
-        include: {
-          Guild: true,
-        },
-      });
-
-      const relevantGuilds = guildSeries.map((gs) => gs.Guild);
+    if (parseFloat(update.latestChapter) > parseFloat(serie.latestChapter)) {
+      const relevantGuilds = guildsSeries.filter((gs) => gs.seriesId === serie.id);
 
       for (const guild of relevantGuilds) {
-        const channel = client.guilds.cache.get(guild.id)?.channels.cache.find((c) => c.id === guild.updatesChannelId);
+        if (!guild.Guild.updatesChannelId) {
+          // Can't post updates if they don't have a channel set
+          continue;
+        }
+        const channel = client.channels.cache.get(guild.Guild.updatesChannelId);
 
         if (channel && channel.isTextBased()) {
-          channel.send(`New chapter of ${serie.name} is out! ${returnedSeries.chapterUrl}`);
+          channel.send(`New chapter of ${serie.name} is out! ${update.chapterUrl}`);
         }
       }
 
@@ -109,11 +109,14 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
           id: serie.id,
         },
         data: {
-          latestChapter: returnedSeries.latestChapter,
+          latestChapter: update.latestChapter,
+          lastCheckedAt: new Date(),
         },
       });
     }
   }
+
+  console.log(`Finished checking for updates at ${new Date().toISOString()}, next check at ${job.nextInvocation().toISOString()}`);
 });
 
 job.invoke();
