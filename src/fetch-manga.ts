@@ -12,26 +12,24 @@ const fetchManga = async (
   }>
 ): Promise<ScraperResult[]> => {
   const results: ScraperResult[] = [];
-  // While we could do this in parallel with a Promise.all
-  // We don't want to get DDOS protection'd by sites we scrape with puppeteer
-  // We also don't want to get rate limited by mangadex
-  for (const item of items) {
-    if (SIDE_CAR_SOURCES.includes(item.source)) {
-      const response = await dispatchToSidecar<ScraperResult[]>({
-        type: "scrape",
-        data: [
-          {
-            url: item.url,
-            source: item.source,
-          },
-        ],
-      });
-      results.push(...response);
-    } else {
-      const response = await mangadex.scrape([item.url]);
-      results.push(...response);
-    }
-  }
+
+  const sideCarableItems = items.filter((item) => SIDE_CAR_SOURCES.includes(item.source));
+
+  const response = await dispatchToSidecar<ScraperResult[]>({
+    type: "scrape",
+    data: sideCarableItems,
+  });
+
+  results.push(...response);
+
+  // Mangadex is a special case, since it's not a sidecarable source
+  // Our only special case for now
+  const mangadexItems = items.filter((item) => !SIDE_CAR_SOURCES.includes(item.source));
+
+  const mangadexResponse = await mangadex.scrape(mangadexItems.map((item) => item.url));
+
+  results.push(...mangadexResponse);
+
   return results;
 };
 
