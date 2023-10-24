@@ -130,6 +130,6 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
   );
 });
 
-job.invoke();
-
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN).then(() => {
+  job.invoke();
+});
