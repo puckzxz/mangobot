@@ -123,8 +123,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     return;
   }
 
-  const lastDashIndex = seriesFromIndex.lastIndexOf('->');
-  const seriesName = seriesFromIndex.substring(0, lastDashIndex).split(' ')[1].trim();
+  const seriesName = seriesFromIndex.replace(/[\u{0080}-\u{FFFF}]/gu, "").slice(2).split(" -> ")[0];
 
   const serie = await prisma.series.findUnique({
     where: {
