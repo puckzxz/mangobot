@@ -49,6 +49,9 @@ export const updateCatalog = async (guildId: string) => {
     include: {
       series: true,
     },
+    orderBy: {
+      createdAt: "asc",
+    }
   });
 
   const series = guildSeries.map((gs) => gs.series);
