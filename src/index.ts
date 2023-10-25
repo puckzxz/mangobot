@@ -123,8 +123,6 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     return;
   }
 
-  // 7️⃣ SSS-Class Suicide Hunter - AsuraScans
-  // We want to split by the last -
   const lastDashIndex = seriesFromIndex.lastIndexOf('-');
   const seriesName = seriesFromIndex.substring(0, lastDashIndex).trim()
 
