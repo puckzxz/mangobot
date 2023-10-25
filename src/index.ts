@@ -124,7 +124,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   }
 
   const lastDashIndex = seriesFromIndex.lastIndexOf('->');
-  const seriesName = seriesFromIndex.substring(0, lastDashIndex).trim()
+  const seriesName = seriesFromIndex.substring(0, lastDashIndex).split(' ')[1].trim();
 
   const serie = await prisma.series.findUnique({
     where: {
