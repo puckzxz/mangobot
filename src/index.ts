@@ -123,7 +123,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     return;
   }
 
-  const seriesName = seriesFromIndex.split(" - ")[1].split(" -")[0].trim();
+  // 7️⃣ SSS-Class Suicide Hunter - AsuraScans
+  // We want to split by the last -
+  const lastDashIndex = seriesFromIndex.lastIndexOf('-');
+  const seriesName = seriesFromIndex.substring(0, lastDashIndex).trim()
 
   const serie = await prisma.series.findUnique({
     where: {

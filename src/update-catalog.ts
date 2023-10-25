@@ -56,7 +56,7 @@ export const updateCatalog = async (guildId: string) => {
 
   const series = guildSeries.map((gs) => gs.series);
 
-  const titles = series.map((s) => `- ${s.name} - [${s.source}](<${s.url}>)`)
+  const titles = series.map((s) => `${s.name} - [${s.source}](<${s.url}>)`)
 
   const chunkedTitles = chunkArray(titles, 10);
 
