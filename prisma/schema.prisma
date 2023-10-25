@@ -16,11 +16,13 @@ model Guild {
 
   // The Discord text channel ID where series updates will be posted
   updatesChannelId String? @map("updates_channel_id")
+  catalogChannelId String? @map("catalog_channel_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  series GuildsSeries[]
+  series       GuildsSeries[]
+  subscription Subscription[]
 
   @@index([id], name: "index_guilds_guild_id")
   @@index([updatesChannelId], name: "index_guilds_updates_channel_id")
@@ -41,29 +43,53 @@ model Series {
 
   // Relevant for sites like MangaDex where we can use the official API
   sourceId      String?  @map("source_id")
+
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
   lastCheckedAt DateTime @default(now()) @map("last_checked_at")
 
   source SeriesSource
 
-  guilds GuildsSeries[]
+  guilds       GuildsSeries[]
+  subscription Subscription[]
 
   @@map("series")
 }
 
 model GuildsSeries {
   id        String   @id @default(uuid())
+
   guildId   String   @map("guild_id")
   seriesId  String   @map("series_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  Guild  Guild  @relation(fields: [guildId], references: [id])
-  Series Series @relation(fields: [seriesId], references: [id])
+  guild  Guild  @relation(fields: [guildId], references: [id])
+  series Series @relation(fields: [seriesId], references: [id])
 
   @@unique([guildId, seriesId])
   @@index([guildId], name: "index_guilds_series_guild_id")
   @@index([seriesId], name: "index_guilds_series_series_id")
   @@map("guilds_series")
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+
+  guildId   String   @map("guild_id")
+  seriesId  String   @map("series_id")
+  userId    String   @map("user_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guild  Guild  @relation(fields: [guildId], references: [id])
+  series Series @relation(fields: [seriesId], references: [id])
+
+  @@unique([guildId, seriesId, userId])
+  @@index([guildId], name: "index_subscriptions_guild_id")
+  @@index([seriesId], name: "index_subscriptions_series_id")
+  @@index([userId], name: "index_subscriptions_user_id")
+  @@map("subscriptions")
 }

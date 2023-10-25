@@ -27,21 +27,21 @@ function splitBySize(str: string) {
 }
 
 const command: Command = {
-  name: "list",
-  description: "List all manga you're currently tracking",
+  name: "subscriptions",
+  description: "Shows your current subscriptions",
   group: "manga",
-  usage: "list",
-  run: async ({ msg, prisma }) => {
-    const guildSeries = await prisma.guildsSeries.findMany({
+  usage: "subscriptions",
+  run: async ({ msg, prisma }, args) => {
+    const subscription = await prisma.subscription.findMany({
       where: {
-        guildId: msg.guild!.id,
+        userId: msg.author.id,
       },
       include: {
-        Series: true,
+        series: true,
       },
     });
 
-    const series = guildSeries.map((gs) => gs.Series);
+    const series = subscription.map((s) => s.series);
 
     const formattedTitles = series.map((s) => `- ${s.name}: ${s.source} - <${s.url}>`).join("\n");
 
@@ -49,6 +49,12 @@ const command: Command = {
     // So we'll send it in multiple messages
     const messagesToSend = splitBySize(formattedTitles);
 
+    if (messagesToSend.length === 0) {
+      await msg.reply("You have no subscriptions");
+      return;
+    }
+
+    await msg.reply("Here are your subscriptions:");
     for (const message of messagesToSend) {
       await msg.channel.send(message);
     }

@@ -12,5 +12,6 @@ export interface Command {
   group: string;
   usage: string;
   description: string;
+  usableBy?: string[];
   run: (ctx: Context, args?: string[]) => Promise<void>;
 }

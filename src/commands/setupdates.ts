@@ -1,10 +1,10 @@
 import { Command } from "../types/command";
 
 const command: Command = {
-  name: "set",
+  name: "setupdates",
   description: "Sets the channel to get updates in",
   group: "manga",
-  usage: "set",
+  usage: "setupdates",
   run: async ({ client, msg, prisma }, args) => {
     const { channelId } = msg;
 

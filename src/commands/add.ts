@@ -3,6 +3,7 @@ import { Command } from "../types/command";
 import fetchManga from "../fetch-manga";
 import { tryToDetermineSeriesSource } from "../utils/try-to-determine-series-source";
 import extractMangadexId from "../utils/extract-mangadex-id";
+import { updateCatalog } from "../update-catalog";
 
 const command: Command = {
   name: "add",
@@ -81,6 +82,8 @@ const command: Command = {
     });
 
     message.edit(`Added <${url}> to the database`);
+
+    updateCatalog(msg.guild!.id);
   },
 };
 

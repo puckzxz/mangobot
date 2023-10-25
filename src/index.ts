@@ -5,6 +5,7 @@ import fs from "fs";
 import { Command } from "./types/command";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
+import { emojiNumbers } from "./emoji";
 
 const commands = new Map<string, Command>();
 
@@ -56,6 +57,15 @@ client.on(Events.MessageCreate, async (msg) => {
     return;
   }
 
+  if (command.usableBy && !command.usableBy.includes(msg.author.id)) {
+    await msg.channel.send(
+      `You don't have permission to use this command, ${msg.author.displayName}! - ${command.usableBy
+        .map((id) => `<@${id}>`)
+        .join(" ")}`
+    );
+    return;
+  }
+
   try {
     await command.run({ client, msg, prisma }, args);
   } catch (error) {
@@ -64,13 +74,115 @@ client.on(Events.MessageCreate, async (msg) => {
   }
 });
 
+client.on(Events.MessageReactionAdd, async (reaction, user) => {
+  if (reaction.partial) {
+    try {
+      await reaction.fetch();
+    } catch (error) {
+      return;
+    }
+  }
+  if (!reaction.message.guild) {
+    return;
+  }
+
+  if (user.bot) {
+    return;
+  }
+
+  const guild = await prisma.guild.findUnique({
+    where: {
+      id: reaction.message.guild.id,
+    },
+  });
+
+  if (!guild) {
+    return;
+  }
+
+  if (reaction.message.channel.id !== guild.catalogChannelId) {
+    return;
+  }
+
+  const emoji = reaction.emoji.name;
+
+  if (!emoji || !emojiNumbers.includes(emoji)) {
+    return;
+  }
+
+  const message = reaction.message;
+  if (!message.content) {
+    return;
+  }
+
+  const messageSeries = message.content.split("\n");
+
+  const seriesFromIndex = messageSeries[emojiNumbers.indexOf(emoji)];
+
+  if (!seriesFromIndex) {
+    return;
+  }
+
+  const seriesName = seriesFromIndex.split(" - ")[1].split(" -")[0].trim();
+
+  const serie = await prisma.series.findUnique({
+    where: {
+      name: seriesName,
+    },
+  });
+
+  if (!serie) {
+    return;
+  }
+
+  const resolvedUser = await client.users.fetch(user.id);
+
+  const subscriptionExists = await prisma.subscription.findUnique({
+    where: {
+      guildId_seriesId_userId: {
+        guildId: guild.id,
+        seriesId: serie.id,
+        userId: user.id,
+      },
+    },
+  });
+
+  if (subscriptionExists) {
+    await prisma.subscription.delete({
+      where: {
+        guildId_seriesId_userId: {
+          guildId: guild.id,
+          seriesId: serie.id,
+          userId: user.id,
+        },
+      },
+    });
+    await reaction.users.remove(resolvedUser);
+    return;
+  }
+
+  await prisma.subscription.create({
+    data: {
+      guildId: guild.id,
+      seriesId: serie.id,
+      userId: user.id,
+    },
+  });
+
+  await reaction.users.remove(resolvedUser);
+});
+
 const job = schedule.scheduleJob("*/30 * * * *", async () => {
-  const series = await prisma.series.findMany({});
+  const series = await prisma.series.findMany({
+    include: {
+      subscription: true,
+    },
+  });
 
   const guildsSeries = await prisma.guildsSeries.findMany({
     where: {},
     include: {
-      Guild: true,
+      guild: true,
     },
   });
 
@@ -93,14 +205,18 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
       const relevantGuilds = guildsSeries.filter((gs) => gs.seriesId === serie.id);
 
       for (const guild of relevantGuilds) {
-        if (!guild.Guild.updatesChannelId) {
+        if (!guild.guild.updatesChannelId) {
           // Can't post updates if they don't have a channel set
           continue;
         }
-        const channel = client.channels.cache.get(guild.Guild.updatesChannelId);
+        const channel = client.channels.cache.get(guild.guild.updatesChannelId);
 
         if (channel && channel.isTextBased()) {
-          channel.send(`New chapter of ${serie.name} is out! ${update.chapterUrl}`);
+          channel.send(
+            `New chapter of ${serie.name} is out! ${update.chapterUrl}\n${serie.subscription
+              .map((s) => `<@${s.userId}>`)
+              .join(" ")}`
+          );
         }
       }
 
