@@ -40,6 +40,7 @@ model Series {
   name          String @unique
   url           String @unique
   latestChapter String @default("0") @map("latest_chapter")
+  imageUrl      String? @map("image_url")
 
   // Relevant for sites like MangaDex where we can use the official API
   sourceId      String?  @map("source_id")

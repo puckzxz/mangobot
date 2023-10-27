@@ -57,6 +57,7 @@ const command: Command = {
         url: seriesUrl,
         sourceId: extractMangadexId(seriesUrl),
         source,
+        imageUrl: series.imageUrl,
       },
       create: {
         name: title,
@@ -64,6 +65,7 @@ const command: Command = {
         url: seriesUrl,
         sourceId: extractMangadexId(seriesUrl),
         source,
+        imageUrl: series.imageUrl,
       },
     });
 

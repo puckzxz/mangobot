@@ -27,6 +27,7 @@ export default {
               ?.replace(/-page-\d+\.html$/, ".html");
           const regex = /chapter-(\d+)/;
           const latestChapter = chapterUrl?.match(regex)?.[1];
+          const imageUrl = document.getElementsByClassName("img-fluid bottom-5")[0]?.getAttribute("src");
           if (!title || !latestChapter || !chapterUrl) {
             return [];
           }
@@ -34,6 +35,7 @@ export default {
             title,
             latestChapter,
             chapterUrl,
+            imageUrl,
           };
         })) as any;
         series.push(data);
@@ -52,6 +54,7 @@ export default {
           seriesUrl: seriesUrllist[series.findIndex((s) => s.title === s.title)],
           source: SeriesSource.MangaSee,
           chapterUrl: s.chapterUrl!,
+          imageUrl: s.imageUrl!,
         };
       });
   },

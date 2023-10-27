@@ -21,11 +21,14 @@ export default {
             const aHref = pageElem.querySelector("a")?.getAttribute("href");
             // This is in a span under the a with the class chapternum
             const chapter = pageElem.querySelector("a")?.querySelector("span.chapternum")?.textContent?.split(" ")[1];
+            //Get image source
+            const imageUrl = document.querySelector(".thumb")?.querySelector("img")?.getAttribute("src");
             if (aHref && chapter) {
               return {
                 title,
                 chapterUrl: aHref,
                 latestChapter: chapter,
+                imageUrl,
               };
             }
           }
@@ -45,6 +48,7 @@ export default {
           seriesUrl: seriesUrllist[series.findIndex((s) => s.title === s.title)],
           source: SeriesSource.AsuraScans,
           chapterUrl: s.chapterUrl!,
+          imageUrl: s.imageUrl!,
         };
       });
   },

@@ -29,12 +29,19 @@ export default {
       const chapterUrl = `https://mangadex.org/chapter/${chapterId}`;
       const seriesUrl = `https://mangadex.org/title/${id}`;
 
+      const fileAttributes = await fetch(`${baseUrl}/manga/${id}?includes[]=cover_art`).then((r) => r.json());
+      const fileName = fileAttributes.data.relationships.find((r: any) => r.type === "cover_art")!.attributes
+        .fileName;
+
+      const imageUrl = `https://uploads.mangadex.org/covers/${id}/${fileName}`;
+
       results.push({
         title,
         latestChapter,
         chapterUrl,
         seriesUrl,
         source: SeriesSource.MangaDex,
+        imageUrl,
       });
     }
     return results;
