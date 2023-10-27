@@ -227,6 +227,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         data: {
           latestChapter: update.latestChapter,
           lastCheckedAt: new Date(),
+          imageUrl: update.imageUrl,
         },
       });
     } else {
@@ -236,6 +237,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         },
         data: {
           lastCheckedAt: new Date(),
+          imageUrl: update.imageUrl,  
         },
       });
     }
