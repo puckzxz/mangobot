@@ -7,6 +7,7 @@ export interface ScraperResult {
   chapterUrl: string;
   latestChapter: string;
   source: SeriesSource;
+  imageUrl: string;
 }
 
 export interface ScraperArgs {

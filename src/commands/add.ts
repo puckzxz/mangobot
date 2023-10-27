@@ -45,6 +45,7 @@ const command: Command = {
       msg.channel.send("Something else went wrong");
       return;
     }
+    console.log(series);
 
     const { title, latestChapter, seriesUrl, source, chapterUrl } = series;
 
@@ -57,6 +58,7 @@ const command: Command = {
         url: seriesUrl,
         sourceId: extractMangadexId(seriesUrl),
         source,
+        imageUrl: series.imageUrl,
       },
       create: {
         name: title,
@@ -64,6 +66,7 @@ const command: Command = {
         url: seriesUrl,
         sourceId: extractMangadexId(seriesUrl),
         source,
+        imageUrl: series.imageUrl,
       },
     });
 
