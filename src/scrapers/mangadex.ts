@@ -30,7 +30,6 @@ export default {
       const seriesUrl = `https://mangadex.org/title/${id}`;
 
       const fileAttributes = await fetch(`${baseUrl}/manga/${id}?includes[]=cover_art`).then((r) => r.json());
-      console.log(fileAttributes);
       const fileName = fileAttributes.data.relationships.find((r: any) => r.type === "cover_art")!.attributes
         .fileName;
 
