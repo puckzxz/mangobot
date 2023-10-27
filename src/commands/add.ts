@@ -45,7 +45,6 @@ const command: Command = {
       msg.channel.send("Something else went wrong");
       return;
     }
-    console.log(series);
 
     const { title, latestChapter, seriesUrl, source, chapterUrl } = series;
 
