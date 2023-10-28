@@ -51,6 +51,7 @@ const command: Command = {
     const dbSeries = await prisma.series.upsert({
       where: {
         name: title,
+        source,
       },
       update: {
         latestChapter,
