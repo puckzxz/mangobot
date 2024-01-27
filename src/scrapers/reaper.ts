@@ -12,21 +12,19 @@ export default {
       for (const url of urls) {
         seriesUrllist.push(url);
         await page.goto(url, { waitUntil: "networkidle2" });
-        await page.waitForSelector(
-          "body > div.container.MainContainer > div > div > div > div > div:nth-child(1) > div.d-sm-none.col-9.top-5.bottom-5 > div.bottom-10"
-        );
+        await page.waitForSelector("body");
         const data = (await page.evaluate(() => {
-          const siteUrl = "https://mangasee123.com";
-          const title = document.querySelector("li.list-group-item.d-none.d-sm-block > h1")?.textContent;
-          const chapterUrl =
-            siteUrl +
-            document
-              .querySelector(".list-group-item.ChapterLink")
-              ?.getAttribute("href")
-              ?.replace(/-page-\d+\.html$/, ".html");
-          const regex = /chapter-(\d+)/;
-          const latestChapter = chapterUrl?.match(regex)?.[1];
-          const imageUrl = document.getElementsByClassName("img-fluid bottom-5")[0]?.getAttribute("src");
+          // Only one h1 on the page and it's the title
+          const title = document.querySelector("h1")?.textContent?.trim();
+          const chapterUrl = document
+            .querySelector(".mt-auto.justify-center.items-center > a:last-child")
+            ?.getAttribute("href")
+            ?.trim();
+          const imageUrl = document
+            .querySelector("img.h-full.w-full.lg\\:h-full.lg\\:w-full")
+            ?.getAttribute("src")
+            ?.trim();
+          const latestChapter = document.querySelector("ul > li > a")?.getAttribute("href")?.split("-").pop();
           if (!title || !latestChapter || !chapterUrl) {
             return [];
           }
@@ -51,7 +49,7 @@ export default {
           title: s.title!,
           latestChapter: s.latestChapter!,
           seriesUrl: seriesUrllist[series.findIndex((s) => s.title === s.title)],
-          source: SeriesSource.MangaSee,
+          source: SeriesSource.ReaperScans,
           chapterUrl: s.chapterUrl!,
           imageUrl: s.imageUrl!,
         };

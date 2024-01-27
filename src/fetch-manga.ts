@@ -3,7 +3,7 @@ import { ScraperResult } from "./types/scraper";
 import { dispatchToSidecar } from "./dispatcher";
 import mangadex from "./scrapers/mangadex";
 
-const SIDE_CAR_SOURCES: SeriesSource[] = [SeriesSource.AsuraScans, SeriesSource.MangaSee];
+const SIDE_CAR_SOURCES: SeriesSource[] = [SeriesSource.AsuraScans, SeriesSource.MangaSee, SeriesSource.ReaperScans];
 
 const fetchManga = async (
   items: Array<{

@@ -3,9 +3,11 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import mangasee from "./scrapers/mangasee";
 import asura from "./scrapers/asura";
+import reaper from "./scrapers/reaper";
 import { Task } from "./types/task";
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult } from "./types/scraper";
+import fs from "fs";
 puppeteer.use(StealthPlugin());
 
 const puppeteerArgs = [
@@ -32,6 +34,7 @@ switch (input.type) {
   case "scrape":
     const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
     const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
+    const reaperSeries = input.data.filter((item) => item.source === SeriesSource.ReaperScans);
 
     if (mangaseeSeries.length > 0) {
       const mangaseeResults = await mangasee.scrape({
@@ -49,6 +52,15 @@ switch (input.type) {
       });
 
       results.push(...asuraResults);
+    }
+
+    if (reaperSeries.length > 0) {
+      const reaperResults = await reaper.scrape({
+        browser,
+        urls: reaperSeries.map((item) => item.url),
+      });
+
+      results.push(...reaperResults);
     }
     break;
   default:

@@ -13,5 +13,9 @@ export const tryToDetermineSeriesSource = (url: string): SeriesSource | null => 
     return SeriesSource.MangaDex;
   }
 
+  if (url.startsWith("https://reaperscans.com")) {
+    return SeriesSource.ReaperScans;
+  }
+
   return null;
 };

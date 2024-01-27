@@ -1,4 +1,3 @@
-import { Browser } from "puppeteer";
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult, ScraperArgs } from "../types/scraper";
 

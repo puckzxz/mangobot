@@ -33,6 +33,7 @@ enum SeriesSource {
   MangaSee
   MangaDex
   AsuraScans
+  ReaperScans
 }
 
 model Series {
