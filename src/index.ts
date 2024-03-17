@@ -6,6 +6,9 @@ import { Command } from "./types/command";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
 import { emojiNumbers } from "./emoji";
+import getLatestAsuraId from "./utils/get-latest-asura-id";
+import { SeriesSource } from "@prisma/client";
+import extractAsuraId from "./utils/extract-asura-id";
 
 const commands = new Map<string, Command>();
 
@@ -123,7 +126,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     return;
   }
 
-  const seriesName = seriesFromIndex.replace(/[\u{0080}-\u{FFFF}]/gu, "").slice(2).split(" -> ")[0];
+  const seriesName = seriesFromIndex
+    .replace(/[\u{0080}-\u{FFFF}]/gu, "")
+    .slice(2)
+    .split(" -> ")[0];
 
   const serie = await prisma.series.findUnique({
     where: {
@@ -173,6 +179,21 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 const job = schedule.scheduleJob("*/30 * * * *", async () => {
+  const asuraSeriesFromDB = await prisma.series.findFirst({
+    where: {
+      source: SeriesSource.AsuraScans,
+    },
+  });
+
+  if (asuraSeriesFromDB) {
+    const latestAsuraId = await getLatestAsuraId();
+    const dbId = extractAsuraId(asuraSeriesFromDB.url);
+    if (latestAsuraId !== dbId) {
+      console.log(`Asura ID has changed from ${dbId} to ${latestAsuraId}`);
+      await prisma.$executeRaw`UPDATE series SET url = replace(url, ${dbId}, ${latestAsuraId}) WHERE source = 'AsuraScans';`;
+    }
+  }
+
   const series = await prisma.series.findMany({
     include: {
       subscription: true,
@@ -237,7 +258,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         },
         data: {
           lastCheckedAt: new Date(),
-          imageUrl: update.imageUrl,  
+          imageUrl: update.imageUrl,
         },
       });
     }

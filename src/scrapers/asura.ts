@@ -1,5 +1,6 @@
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult, ScraperArgs } from "../types/scraper";
+import extractAsuraId from "../utils/extract-asura-id";
 
 export default {
   async scrape({ browser, urls }: ScraperArgs): Promise<ScraperResult[]> {
@@ -50,5 +51,25 @@ export default {
           imageUrl: s.imageUrl!,
         };
       });
+  },
+  async getLatestId({ browser }: { browser: any }): Promise<string | null> {
+    const page = await browser.newPage();
+    await page.setCacheEnabled(false);
+    try {
+      await page.goto("https://asuratoon.com/", { waitUntil: "networkidle2" });
+      await page.waitForSelector(".series");
+      const data = (await page.evaluate(() => {
+        const elems = document.getElementsByClassName("series");
+        const firstSeries = elems[0] as HTMLAnchorElement;
+        const seriesUrl = firstSeries.href;
+        const seriesId = extractAsuraId(seriesUrl);
+        return seriesId;
+      })) as any;
+      return data;
+    } catch (e) {
+      return null;
+    } finally {
+      await page.close();
+    }
   },
 };

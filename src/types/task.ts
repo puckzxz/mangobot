@@ -8,4 +8,11 @@ export interface Scrape {
   }>;
 }
 
-export type Task = Scrape;
+export interface CheckId {
+  type: 'checkId';
+  data: {
+    source: SeriesSource;
+  }
+}
+
+export type Task = Scrape | CheckId;

@@ -7,7 +7,6 @@ import reaper from "./scrapers/reaper";
 import { Task } from "./types/task";
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult } from "./types/scraper";
-import fs from "fs";
 puppeteer.use(StealthPlugin());
 
 const puppeteerArgs = [
@@ -28,10 +27,9 @@ const rawData = args[0];
 
 const input = decode(rawData) as Task;
 
-let results: ScraperResult[] = [];
-
 switch (input.type) {
   case "scrape":
+    let results: ScraperResult[] = [];
     const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
     const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
     const reaperSeries = input.data.filter((item) => item.source === SeriesSource.ReaperScans);
@@ -62,11 +60,14 @@ switch (input.type) {
 
       results.push(...reaperResults);
     }
+    Bun.write(Bun.stdout, encode(results));
+    break;
+  case "checkId":
+    const asuraId = await asura.getLatestId({ browser });
+    Bun.write(Bun.stdout, encode(asuraId));
     break;
   default:
     break;
 }
-
-Bun.write(Bun.stdout, encode(results));
 
 process.exit(0);
