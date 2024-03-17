@@ -1,6 +1,5 @@
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult, ScraperArgs } from "../types/scraper";
-import extractAsuraId from "../utils/extract-asura-id";
 
 export default {
   async scrape({ browser, urls }: ScraperArgs): Promise<ScraperResult[]> {
@@ -62,7 +61,7 @@ export default {
         const elems = document.getElementsByClassName("series");
         const firstSeries = elems[0] as HTMLAnchorElement;
         const seriesUrl = firstSeries.href;
-        const seriesId = extractAsuraId(seriesUrl);
+        const seriesId = seriesUrl.split("manga/")[1].split("-")[0];
         return seriesId;
       })) as any;
       return data;
