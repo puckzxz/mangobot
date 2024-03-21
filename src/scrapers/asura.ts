@@ -59,10 +59,10 @@ export default {
       await page.waitForSelector(".series");
       const data = (await page.evaluate(() => {
         const elems = document.getElementsByClassName("series");
-        const firstSeries = elems[0] as HTMLAnchorElement;
+        const firstSeries = elems[4] as HTMLAnchorElement;
         const seriesUrl = firstSeries.href;
-        const seriesId = seriesUrl.split("manga/")[1].split("-")[0];
-        return seriesId;
+        const maybeSeriesId = seriesUrl.split("manga/")[1].split("-")[0];
+        return Number.isNaN(parseInt(maybeSeriesId)) ? null : maybeSeriesId;
       })) as any;
       return data;
     } catch (e) {
