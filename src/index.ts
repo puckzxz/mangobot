@@ -188,7 +188,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
   if (asuraSeriesFromDB) {
     const latestAsuraId = await getLatestAsuraId();
     const dbId = extractAsuraId(asuraSeriesFromDB.url);
-    if (latestAsuraId !== dbId) {
+    if (latestAsuraId && latestAsuraId !== dbId) {
       console.log(`Asura ID has changed from ${dbId} to ${latestAsuraId}`);
       await prisma.$executeRaw`UPDATE series SET url = replace(url, ${dbId}, ${latestAsuraId}) WHERE source = 'AsuraScans';`;
     }
