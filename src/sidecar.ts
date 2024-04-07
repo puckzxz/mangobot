@@ -17,57 +17,64 @@ const puppeteerArgs = [
   "--disable-gpu-shader-disk-cache",
   "--media-cache-size=0",
   "--disk-cache-size=0",
+  "--disable-dev-shm-usage",
 ];
 
 const browser = await puppeteer.launch({ headless: "new", args: puppeteerArgs });
 
-const args = Bun.argv.slice(2);
+try {
+  const args = Bun.argv.slice(2);
 
-const rawData = args[0];
+  const rawData = args[0];
 
-const input = decode(rawData) as Task;
+  const input = decode(rawData) as Task;
 
-switch (input.type) {
-  case "scrape":
-    let results: ScraperResult[] = [];
-    const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
-    const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
-    const reaperSeries = input.data.filter((item) => item.source === SeriesSource.ReaperScans);
+  switch (input.type) {
+    case "scrape":
+      let results: ScraperResult[] = [];
+      const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
+      const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
+      const reaperSeries = input.data.filter((item) => item.source === SeriesSource.ReaperScans);
 
-    if (mangaseeSeries.length > 0) {
-      const mangaseeResults = await mangasee.scrape({
-        browser,
-        urls: mangaseeSeries.map((item) => item.url),
-      });
+      if (mangaseeSeries.length > 0) {
+        const mangaseeResults = await mangasee.scrape({
+          browser,
+          urls: mangaseeSeries.map((item) => item.url),
+        });
 
-      results.push(...mangaseeResults);
-    }
+        results.push(...mangaseeResults);
+      }
 
-    if (asuraSeries.length > 0) {
-      const asuraResults = await asura.scrape({
-        browser,
-        urls: asuraSeries.map((item) => item.url),
-      });
+      if (asuraSeries.length > 0) {
+        const asuraResults = await asura.scrape({
+          browser,
+          urls: asuraSeries.map((item) => item.url),
+        });
 
-      results.push(...asuraResults);
-    }
+        results.push(...asuraResults);
+      }
 
-    if (reaperSeries.length > 0) {
-      const reaperResults = await reaper.scrape({
-        browser,
-        urls: reaperSeries.map((item) => item.url),
-      });
+      if (reaperSeries.length > 0) {
+        const reaperResults = await reaper.scrape({
+          browser,
+          urls: reaperSeries.map((item) => item.url),
+        });
 
-      results.push(...reaperResults);
-    }
-    Bun.write(Bun.stdout, encode(results));
-    break;
-  case "checkId":
-    const asuraId = await asura.getLatestId({ browser });
-    Bun.write(Bun.stdout, encode(asuraId));
-    break;
-  default:
-    break;
+        results.push(...reaperResults);
+      }
+      Bun.write(Bun.stdout, encode(results));
+      break;
+    case "checkId":
+      const asuraId = await asura.getLatestId({ browser });
+      Bun.write(Bun.stdout, encode(asuraId));
+      break;
+    default:
+      break;
+  }
+} catch (error) {
+  console.error(error);
 }
+
+browser.close();
 
 process.exit(0);
