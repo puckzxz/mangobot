@@ -20,7 +20,7 @@ const puppeteerArgs = [
   "--disable-dev-shm-usage",
 ];
 
-const browser = await puppeteer.launch({ headless: "new", args: puppeteerArgs });
+const browser = await puppeteer.launch({ args: puppeteerArgs });
 
 try {
   const args = Bun.argv.slice(2);
