@@ -95,7 +95,7 @@ try {
 browser.close();
 
 if (chromeTempDataDir) {
-  fs.unlinkSync(chromeTempDataDir);
+  fs.rmSync(chromeTempDataDir, { recursive: true, force: true});
 }
 
 process.exit(0);
