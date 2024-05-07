@@ -7,6 +7,7 @@ import reaper from "./scrapers/reaper";
 import { Task } from "./types/task";
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult } from "./types/scraper";
+import fs from "fs";
 puppeteer.use(StealthPlugin());
 
 const puppeteerArgs = [
@@ -21,6 +22,22 @@ const puppeteerArgs = [
 ];
 
 const browser = await puppeteer.launch({ args: puppeteerArgs });
+
+if (!browser) {
+  throw new Error("Failed to launch browser");
+}
+
+let chromeTempDataDir = null;
+
+let chromeSpawnArgs = browser.process()?.spawnargs;
+
+if (chromeSpawnArgs?.length) {
+  for (let i = 0; i < chromeSpawnArgs.length; i++) {
+    if (chromeSpawnArgs[i].indexOf("--user-data-dir=") === 0) {
+      chromeTempDataDir = chromeSpawnArgs[i].replace("--user-data-dir=", "");
+    }
+  }
+}
 
 try {
   const args = Bun.argv.slice(2);
@@ -76,5 +93,9 @@ try {
 }
 
 browser.close();
+
+if (chromeTempDataDir) {
+  fs.unlinkSync(chromeTempDataDir);
+}
 
 process.exit(0);
