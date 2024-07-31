@@ -13,23 +13,17 @@ export default {
         await page.goto(url, { waitUntil: "networkidle2" });
         await page.waitForSelector("#chapterlist");
         const data = (await page.evaluate(() => {
-          const title = document.querySelector(".entry-title")?.textContent;
-          const elems = document.querySelectorAll(".eph-num");
-          const pageElems = Array.from(elems);
-          for (const pageElem of pageElems) {
-            const aHref = pageElem.querySelector("a")?.getAttribute("href");
-            // This is in a span under the a with the class chapternum
-            const chapter = pageElem.querySelector("a")?.querySelector("span.chapternum")?.textContent?.split(" ")[1];
-            //Get image source
-            const imageUrl = document.querySelector(".thumb")?.querySelector("img")?.getAttribute("src");
-            if (aHref && chapter) {
-              return {
-                title,
-                chapterUrl: aHref,
-                latestChapter: chapter,
-                imageUrl,
-              };
-            }
+          const title = document.querySelector("span.text-xl.font-bold")?.textContent;
+          const imageUrl = document.querySelector('img[alt="poster"]')?.getAttribute("src");
+          const latestUrl = Array.from(document.querySelectorAll('a[class="block"]')).map(x => (x as HTMLAnchorElement).href)[0];
+          const latestChapter = latestUrl.split("/").pop();
+          if (title && latestChapter && latestUrl) {
+            return {
+              title,
+              latestChapter,
+              chapterUrl: latestUrl,
+              imageUrl,
+            };
           }
         })) as any;
         series.push(data);
@@ -50,25 +44,5 @@ export default {
           imageUrl: s.imageUrl!,
         };
       });
-  },
-  async getLatestId({ browser }: { browser: any }): Promise<string | null> {
-    const page = await browser.newPage();
-    await page.setCacheEnabled(false);
-    try {
-      await page.goto("https://asuratoon.com/", { waitUntil: "networkidle2" });
-      await page.waitForSelector(".series");
-      const data = (await page.evaluate(() => {
-        const elems = document.getElementsByClassName("series");
-        const firstSeries = elems[4] as HTMLAnchorElement;
-        const seriesUrl = firstSeries.href;
-        const maybeSeriesId = seriesUrl.split("manga/")[1].split("-")[0];
-        return Number.isNaN(parseInt(maybeSeriesId)) ? null : maybeSeriesId;
-      })) as any;
-      return data;
-    } catch (e) {
-      return null;
-    } finally {
-      await page.close();
-    }
   },
 };

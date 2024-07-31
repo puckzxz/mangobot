@@ -81,10 +81,6 @@ try {
       }
       Bun.write(Bun.stdout, encode(results));
       break;
-    case "checkId":
-      const asuraId = await asura.getLatestId({ browser });
-      Bun.write(Bun.stdout, encode(asuraId));
-      break;
     default:
       break;
   }
