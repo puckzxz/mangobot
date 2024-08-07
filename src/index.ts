@@ -176,6 +176,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 const job = schedule.scheduleJob("*/30 * * * *", async () => {
+  console.log(`Checking for updates at ${new Date().toISOString()}`);
   const series = await prisma.series.findMany({
     include: {
       subscription: true,
@@ -196,15 +197,22 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
     }))
   );
 
+  console.log(`Found ${seriesUpdates.length} updates`);
+
+  console.log("--- START Series Updates ---");
+  console.log(JSON.stringify(seriesUpdates, null, 2));
+  console.log("--- END Series Updates ---");
+
   for (const update of seriesUpdates) {
     const serie = series.find((s) => s.name === update.title);
     if (!serie) {
-      // This should never happen :^)
+      console.log(`Could not find serie ${update.title} - for update ${update.chapterUrl}`);
       continue;
     }
     // Parse float here since sometimes we'll have partial chapters
     // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse
     if (parseFloat(update.latestChapter) > parseFloat(serie.latestChapter)) {
+      console.log(`New chapter for ${serie.name} - ${update.chapterUrl}`);
       const relevantGuilds = guildsSeries.filter((gs) => gs.seriesId === serie.id);
 
       for (const guild of relevantGuilds) {
@@ -215,11 +223,14 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         const channel = client.channels.cache.get(guild.guild.updatesChannelId);
 
         if (channel && channel.isTextBased()) {
-          channel.send(
+          const ok = await channel.send(
             `New chapter of ${serie.name} is out! ${update.chapterUrl}\n${serie.subscription
               .map((s) => `<@${s.userId}>`)
               .join(" ")}`
           );
+          ok
+            ? console.log(`Posted update for ${serie.name} in ${guild.guild.name}`)
+            : console.log(`Failed to post update for ${serie.name} in ${guild.guild.name}`);
         }
       }
 
@@ -234,6 +245,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         },
       });
     } else {
+      console.log(`No new chapter for ${serie.name}`);
       await prisma.series.update({
         where: {
           id: serie.id,
