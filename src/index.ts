@@ -197,12 +197,6 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
     }))
   );
 
-  console.log(`Found ${seriesUpdates.length} updates`);
-
-  console.log("--- START Series Updates ---");
-  console.log(JSON.stringify(seriesUpdates, null, 2));
-  console.log("--- END Series Updates ---");
-
   for (const update of seriesUpdates) {
     const serie = series.find((s) => s.name === update.title);
     if (!serie) {
@@ -245,7 +239,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         },
       });
     } else {
-      console.log(`No new chapter for ${serie.name}`);
+      // console.log(`No new chapter for ${serie.name}`);
       await prisma.series.update({
         where: {
           id: serie.id,
