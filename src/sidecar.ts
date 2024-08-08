@@ -1,6 +1,8 @@
 import { decode, encode } from "./coder";
 import puppeteer from "puppeteer-extra";
+import { DEFAULT_INTERCEPT_RESOLUTION_PRIORITY } from "puppeteer";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import AdBlocker from "puppeteer-extra-plugin-adblocker";
 import mangasee from "./scrapers/mangasee";
 import asura from "./scrapers/asura";
 import reaper from "./scrapers/reaper";
@@ -9,6 +11,11 @@ import { SeriesSource } from "@prisma/client";
 import { ScraperResult } from "./types/scraper";
 import fs from "fs";
 puppeteer.use(StealthPlugin());
+puppeteer.use(
+  AdBlocker({
+    interceptResolutionPriority: DEFAULT_INTERCEPT_RESOLUTION_PRIORITY,
+  })
+);
 
 const puppeteerArgs = [
   "--aggressive-cache-discard",
@@ -21,7 +28,7 @@ const puppeteerArgs = [
   "--disable-dev-shm-usage",
 ];
 
-const browser = await puppeteer.launch({ args: puppeteerArgs });
+const browser = await puppeteer.launch({ args: puppeteerArgs, headless: true });
 
 if (!browser) {
   throw new Error("Failed to launch browser");
@@ -91,7 +98,7 @@ try {
 browser.close();
 
 if (chromeTempDataDir) {
-  fs.rmSync(chromeTempDataDir, { recursive: true, force: true});
+  fs.rmSync(chromeTempDataDir, { recursive: true, force: true });
 }
 
 process.exit(0);
