@@ -10,7 +10,7 @@ export default {
     try {
       for (const url of urls) {
         seriesUrllist.push(url);
-        await page.goto(url, { waitUntil: "networkidle2" });
+        await page.goto(url);
         const data = (await page.evaluate(() => {
           const title = document.querySelector("span.text-xl.font-bold")?.textContent;
           const imageUrl = document.querySelector('img[alt="poster"]')?.getAttribute("src");
