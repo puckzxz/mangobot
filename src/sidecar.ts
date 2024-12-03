@@ -18,6 +18,7 @@ puppeteer.use(
 );
 
 const puppeteerArgs = [
+  "--no-sandbox",
   "--aggressive-cache-discard",
   "--disable-cache",
   "--disable-application-cache",
