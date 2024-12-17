@@ -8,4 +8,4 @@ export interface Scrape {
   }>;
 }
 
-export type Task = Scrape
+export type Task = Scrape;

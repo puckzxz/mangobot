@@ -6,6 +6,7 @@ import AdBlocker from "puppeteer-extra-plugin-adblocker";
 import mangasee from "./scrapers/mangasee";
 import asura from "./scrapers/asura";
 import reaper from "./scrapers/reaper";
+import weebcentral from "./scrapers/weebcentral";
 import { Task } from "./types/task";
 import { SeriesSource } from "@prisma/client";
 import { ScraperResult } from "./types/scraper";
@@ -60,6 +61,7 @@ try {
       const mangaseeSeries = input.data.filter((item) => item.source === SeriesSource.MangaSee);
       const asuraSeries = input.data.filter((item) => item.source === SeriesSource.AsuraScans);
       const reaperSeries = input.data.filter((item) => item.source === SeriesSource.ReaperScans);
+      const weebcentralSeries = input.data.filter((item) => item.source === SeriesSource.WeebCentral);
 
       if (mangaseeSeries.length > 0) {
         const mangaseeResults = await mangasee.scrape({
@@ -87,6 +89,16 @@ try {
 
         results.push(...reaperResults);
       }
+
+      if (weebcentralSeries.length > 0) {
+        const weebcentralResults = await weebcentral.scrape({
+          browser,
+          urls: weebcentralSeries.map((item) => item.url),
+        });
+
+        results.push(...weebcentralResults);
+      }
+
       Bun.write(Bun.stdout, encode(results));
       break;
     default:

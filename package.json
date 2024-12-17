@@ -5,7 +5,9 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "typecheck": "tsc --project ./tsconfig.json",
-    "migrate": "prisma migrate deploy"
+    "migrate": "prisma migrate deploy",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
   },
   "devDependencies": {
     "bun-types": "latest",

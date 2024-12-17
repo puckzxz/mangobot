@@ -17,5 +17,9 @@ export const tryToDetermineSeriesSource = (url: string): SeriesSource | null => 
     return SeriesSource.ReaperScans;
   }
 
+  if (url.startsWith("https://weebcentral.com")) {
+    return SeriesSource.WeebCentral;
+  }
+
   return null;
 };

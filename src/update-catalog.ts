@@ -34,13 +34,15 @@ export const updateCatalog = async (guildId: string) => {
   }
 
   const messages = await channel.messages.fetch();
-  await Promise.all(messages.map((m) => {
-    if (m.author.id !== client.user?.id || !m.member?.client.user.bot) {
-      return;
-    }
+  await Promise.all(
+    messages.map((m) => {
+      if (m.author.id !== client.user?.id || !m.member?.client.user.bot) {
+        return;
+      }
 
-    return m.delete();
-  }));
+      return m.delete();
+    })
+  );
 
   const guildSeries = await prisma.guildsSeries.findMany({
     where: {
@@ -51,12 +53,12 @@ export const updateCatalog = async (guildId: string) => {
     },
     orderBy: {
       createdAt: "asc",
-    }
+    },
   });
 
   const series = guildSeries.map((gs) => gs.series);
 
-  const titles = series.map((s) => `${s.name} -> [${s.source}](<${s.url}>)`)
+  const titles = series.map((s) => `${s.name} -> [${s.source}](<${s.url}>)`);
 
   const chunkedTitles = chunkArray(titles, 10);
 
