@@ -1,4 +1,4 @@
-import { Command } from "../types/command";
+import { Command } from "../../../types/command";
 
 function splitBySize(str: string) {
   const lines = str.split("\n");

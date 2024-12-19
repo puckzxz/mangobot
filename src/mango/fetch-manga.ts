@@ -1,7 +1,7 @@
 import { SeriesSource } from "@prisma/client";
-import { ScraperResult } from "./types/scraper";
+import { ScraperResult } from "../types/scraper";
 import { dispatchToSidecar } from "./dispatcher";
-import mangadex from "./scrapers/mangadex";
+import mangadex from "../scrapers/mangadex";
 
 const SIDE_CAR_SOURCES: SeriesSource[] = [
   SeriesSource.AsuraScans,
@@ -38,4 +38,4 @@ const fetchManga = async (
   return results;
 };
 
-export default fetchManga;
+export { fetchManga };
