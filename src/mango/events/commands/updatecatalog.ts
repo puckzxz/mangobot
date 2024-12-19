@@ -1,5 +1,5 @@
-import { Command } from "../types/command";
-import { updateCatalog } from "../update-catalog";
+import { Command } from "../../../types/command";
+import { updateCatalog } from "../../update-catalog";
 
 const command: Command = {
   name: "updatecatalog",

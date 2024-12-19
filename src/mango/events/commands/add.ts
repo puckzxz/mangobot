@@ -1,9 +1,8 @@
-import { SeriesSource } from "@prisma/client";
-import { Command } from "../types/command";
-import fetchManga from "../fetch-manga";
-import { tryToDetermineSeriesSource } from "../utils/try-to-determine-series-source";
-import extractMangadexId from "../utils/extract-mangadex-id";
-import { updateCatalog } from "../update-catalog";
+import { Command } from "../../../types/command";
+import { fetchManga } from "../../fetch-manga";
+import { tryToDetermineSeriesSource } from "../../../utils/try-to-determine-series-source";
+import extractMangadexId from "../../../utils/extract-mangadex-id";
+import { updateCatalog } from "../../update-catalog";
 
 const command: Command = {
   name: "add",
