@@ -11,7 +11,7 @@ export default {
         seriesUrllist.push(url);
         await page.goto(url, { timeout: 0, waitUntil: "domcontentloaded" });
         const data = (await page.evaluate(() => {
-          const title = document.querySelector("span.text-xl.font-bold")?.textContent;
+          const title = document.querySelector("div.text-center.sm\\:text-left > span.text-xl.font-bold")?.textContent;
           const imageUrl = document.querySelector('img[alt="poster"]')?.getAttribute("src");
           const chapterDivs = Array.from(
             document.querySelectorAll('div[class*="pl-4 py-2 border rounded-md group w-full"]')
