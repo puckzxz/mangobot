@@ -32,6 +32,10 @@ const command: Command = {
   group: "manga",
   usage: "subscriptions",
   run: async ({ msg, prisma }, args) => {
+    const channel = msg.channel;
+    if (!channel.isTextBased() || channel.isDMBased()) {
+      return;
+    }
     const subscription = await prisma.subscription.findMany({
       where: {
         userId: msg.author.id,
@@ -56,7 +60,7 @@ const command: Command = {
 
     await msg.reply("Here are your subscriptions:");
     for (const message of messagesToSend) {
-      await msg.channel.send(message);
+      await channel.send(message);
     }
   },
 };

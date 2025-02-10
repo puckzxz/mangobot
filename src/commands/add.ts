@@ -4,6 +4,7 @@ import fetchManga from "../fetch-manga";
 import { tryToDetermineSeriesSource } from "../utils/try-to-determine-series-source";
 import extractMangadexId from "../utils/extract-mangadex-id";
 import { updateCatalog } from "../update-catalog";
+import { ChannelType } from "discord.js";
 
 const command: Command = {
   name: "add",
@@ -11,19 +12,24 @@ const command: Command = {
   group: "manga",
   usage: "add <url>",
   run: async ({ msg, prisma }, args) => {
+    const channel = msg.channel;
+    if (!channel.isTextBased() || channel.isDMBased()) {
+      return;
+    }
+
     if (!args) {
-      msg.channel.send("Please provide a url");
+      channel.send("Please provide a url");
       return;
     }
 
     const url = args[0];
 
-    const message = await msg.channel.send(`Adding <${url}> to the database...`);
+    const message = await channel.send(`Adding <${url}> to the database...`);
 
     const seriesSource = tryToDetermineSeriesSource(url);
 
     if (!seriesSource) {
-      msg.channel.send("Could not determine source");
+      channel.send("Could not determine source");
       return;
     }
 
@@ -35,14 +41,14 @@ const command: Command = {
     ]);
 
     if (!data) {
-      msg.channel.send("Something went wrong");
+      channel.send("Something went wrong");
       return;
     }
 
     const series = data[0];
 
     if (!series) {
-      msg.channel.send("Something else went wrong");
+      channel.send("Something else went wrong");
       return;
     }
 

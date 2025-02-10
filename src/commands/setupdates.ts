@@ -6,6 +6,10 @@ const command: Command = {
   group: "manga",
   usage: "setupdates",
   run: async ({ client, msg, prisma }, args) => {
+    const channel = msg.channel;
+    if (!channel.isTextBased() || channel.isDMBased()) {
+      return;
+    }
     const { channelId } = msg;
 
     await prisma.guild.update({
@@ -17,7 +21,7 @@ const command: Command = {
       },
     });
 
-    msg.channel.send(`Set updates channel to <#${channelId}>`);
+    channel.send(`Set updates channel to <#${channelId}>`);
   },
 };
 

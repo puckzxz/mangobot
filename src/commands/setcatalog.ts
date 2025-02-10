@@ -7,6 +7,11 @@ const command: Command = {
   usage: "setcatalog",
   usableBy: ["135554522616561664"],
   run: async ({ msg, prisma }) => {
+    const channel = msg.channel;
+    if (!channel.isTextBased() || channel.isDMBased()) {
+      return;
+    }
+
     const { channelId } = msg;
 
     await prisma.guild.update({
@@ -18,7 +23,7 @@ const command: Command = {
       },
     });
 
-    msg.channel.send(`Set catalog channel to <#${channelId}>`);
+    channel.send(`Set catalog channel to <#${channelId}>`);
   },
 };
 

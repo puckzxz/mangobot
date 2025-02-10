@@ -216,7 +216,7 @@ const job = schedule.scheduleJob("*/30 * * * *", async () => {
         }
         const channel = client.channels.cache.get(guild.guild.updatesChannelId);
 
-        if (channel && channel.isTextBased()) {
+        if (channel && channel.isTextBased() && channel.isSendable()) {
           const ok = await channel.send(
             `New chapter of ${serie.name} is out! ${update.chapterUrl}\n${serie.subscription
               .map((s) => `<@${s.userId}>`)

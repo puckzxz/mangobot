@@ -1,3 +1,6 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+
 import { Chapter } from "../types/mangdaex-chapter";
 import { ScraperResult } from "../types/scraper";
 import { SeriesSource } from "@prisma/client";

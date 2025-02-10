@@ -29,7 +29,7 @@ export const updateCatalog = async (guildId: string) => {
 
   // Delete all messages in the catalog channel
   const channel = await client.channels.fetch(catalogChannelId);
-  if (!channel || !channel.isTextBased()) {
+  if (!channel || !channel.isTextBased() || !channel.isSendable()) {
     return;
   }
 

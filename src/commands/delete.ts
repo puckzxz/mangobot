@@ -7,15 +7,20 @@ const command: Command = {
   group: "manga",
   usage: "delete <url>",
   run: async ({ msg, prisma }, args) => {
+    const channel = msg.channel;
+    if (!channel.isTextBased() || channel.isDMBased()) {
+      return;
+    }
+
     if (!args) {
-      msg.channel.send("Please provide a url");
+      channel.send("Please provide a url");
       return;
     }
 
     const url = args[0];
 
     if (!url) {
-      msg.channel.send("Please provide a url");
+      channel.send("Please provide a url");
       return;
     }
 
@@ -26,7 +31,7 @@ const command: Command = {
     });
 
     if (!series) {
-      msg.channel.send("Could not find series");
+      channel.send("Could not find series");
       return;
     }
 
@@ -39,7 +44,7 @@ const command: Command = {
       },
     });
 
-    msg.channel.send(`Deleted ${series.name}`);
+    channel.send(`Deleted ${series.name}`);
 
     updateCatalog(msg.guild!.id);
   },
