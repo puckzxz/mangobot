@@ -2,6 +2,7 @@
   "name": "mangobot",
   "module": "src/index.ts",
   "type": "module",
+  "license": "UNLICENSED",
   "scripts": {
     "start": "bun run src/index.ts",
     "typecheck": "tsc --project ./tsconfig.json",
@@ -10,22 +11,22 @@
     "format": "prettier --write ."
   },
   "devDependencies": {
-    "@types/node": "22.13.1",
+    "@types/node": "22.14.1",
     "@types/web": "0.0.202",
     "bun-types": "latest",
-    "prettier": "^3.0.3",
-    "prisma": "^5.4.2",
-    "typescript": "^5.7.3"
+    "prettier": "^3.5.3",
+    "prisma": "^5.22.0",
+    "typescript": "^5.8.3"
   },
   "peerDependencies": {
-    "typescript": "^5.7.3"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@prisma/client": "5.4.2",
     "@types/node-schedule": "^2.1.7",
-    "discord.js": "^14.17.3",
+    "discord.js": "^14.18.0",
     "node-schedule": "^2.1.1",
-    "puppeteer": "^23.9.0",
+    "puppeteer": "19.11.1",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-adblocker": "^2.13.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
