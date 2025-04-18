@@ -1,4 +1,4 @@
-FROM ghcr.io/puppeteer/puppeteer:20.9.0
+FROM ghcr.io/puppeteer/puppeteer:22.15.0
 WORKDIR /app
 # Install dependencies
 COPY --chown=pptruser:pptruser package*.json yarn.lock .env ./
