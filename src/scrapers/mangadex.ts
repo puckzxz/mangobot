@@ -17,13 +17,15 @@ export default {
         `${baseUrl}/manga/${id}/feed?translatedLanguage[]=en&order[chapter]=desc&includes[]=manga&limit=1`
       );
       if (!response.ok) {
-        throw new Error(`Failed to fetch latest chapter from id ${id}`);
+        console.error(`Failed to fetch latest chapter from id ${id}`);
+        continue;
       }
 
       const json = await (<Promise<Chapter>>response.json());
 
       if (!json.data.length) {
-        throw new Error(`No chapters found for id ${id}`);
+        console.error(`No chapters found for id ${id}`);
+        continue;
       }
 
       const latestChapter = json.data[0].attributes.chapter;
