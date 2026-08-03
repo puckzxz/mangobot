@@ -1,262 +1,292 @@
-import { Events } from "discord.js";
+import { Events, Guild } from "discord.js";
 import client from "./client";
 import prisma from "./prisma";
-import fs from "fs";
-import { Command } from "./types/command";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
 import { emojiNumbers } from "./emoji";
+import { commandsByName } from "./commands";
+import { parseCatalogLine } from "./catalog-line";
 
-const commands = new Map<string, Command>();
+/**
+ * Nothing below is allowed to take the process down. Bun exits with code 1 on an
+ * unhandled rejection, and with `restart: always` a persistent failure became an
+ * infinite crash-and-rescrape loop. Every handler catches its own errors; these are
+ * the backstop for anything that still slips through.
+ */
+process.on("unhandledRejection", (reason) => console.error("Unhandled rejection:", reason));
+process.on("uncaughtException", (error) => console.error("Uncaught exception:", error));
 
-client.on(Events.ClientReady, (client) => {
-  console.log(`Logged in as ${client.user?.tag}!`);
-  client.guilds.cache.forEach(async (guild) => {
-    console.log(`Logged in to guild ${guild.name}`);
-    await prisma.guild.upsert({
-      where: {
-        id: guild.id,
-      },
-      update: {
-        name: guild.name,
-      },
-      create: {
-        id: guild.id,
-        name: guild.name,
-      },
-    });
+const registerGuild = (guild: Guild) =>
+  prisma.guild.upsert({
+    where: { id: guild.id },
+    update: { name: guild.name },
+    create: { id: guild.id, name: guild.name },
   });
-  const commandFiles = fs.readdirSync("./src/commands").filter((file) => file.endsWith(".ts"));
-  for (const file of commandFiles) {
-    const command = require(`./commands/${file}`).default;
-    commands.set(command.name, command);
-    console.log(`Loaded command ${command.name}`);
+
+client.once(Events.ClientReady, async (readyClient) => {
+  console.log(`Logged in as ${readyClient.user.tag}!`);
+
+  // allSettled, and awaited: this was a floating async forEach, so a failing upsert
+  // became an unhandled rejection and one failure hid the rest.
+  const registrations = await Promise.allSettled(readyClient.guilds.cache.map(registerGuild));
+  for (const [index, result] of registrations.entries()) {
+    if (result.status === "rejected") {
+      console.error(`Failed to register guild ${index}:`, result.reason);
+    }
+  }
+
+  console.log(`Loaded ${commandsByName.size} commands, watching ${readyClient.guilds.cache.size} guild(s)`);
+
+  // Only start scraping once the gateway is connected, otherwise the channel cache
+  // is empty and the first pass posts nothing while still advancing latestChapter.
+  void runUpdateCheck();
+});
+
+// Guilds joined while the bot is running previously had no row at all, so every
+// command against them failed on a foreign key.
+client.on(Events.GuildCreate, async (guild) => {
+  try {
+    await registerGuild(guild);
+    console.log(`Joined guild ${guild.name}`);
+  } catch (error) {
+    console.error(`Failed to register guild ${guild.name}:`, error);
   }
 });
 
 client.on(Events.MessageCreate, async (msg) => {
-  if (!msg.guild) {
-    return;
-  }
-
-  if (!msg.content.startsWith("!")) {
-    return;
-  }
-
-  const args = msg.content.slice(1).trim().split(/ +/);
-
-  const commandName = args.shift()?.toLowerCase();
-
-  if (!commandName) {
-    return;
-  }
-
-  const command = commands.get(commandName);
-
-  if (!command) {
-    return;
-  }
-
-  if (command.usableBy && !command.usableBy.includes(msg.author.id)) {
-    await msg.channel.send(
-      `You don't have permission to use this command, ${msg.author.displayName}! - ${command.usableBy
-        .map((id) => `<@${id}>`)
-        .join(" ")}`
-    );
-    return;
-  }
-
   try {
+    if (!msg.guild || !msg.content.startsWith("!")) {
+      return;
+    }
+
+    const args = msg.content.slice(1).trim().split(/ +/);
+    const commandName = args.shift()?.toLowerCase();
+    if (!commandName) {
+      return;
+    }
+
+    const command = commandsByName.get(commandName);
+    if (!command) {
+      return;
+    }
+
+    if (command.usableBy && !command.usableBy.includes(msg.author.id)) {
+      await msg.reply("You don't have permission to use that command.");
+      return;
+    }
+
     await command.run({ client, msg, prisma }, args);
   } catch (error) {
-    console.error(error);
-    msg.channel.send("There was an error trying to execute that command!");
+    console.error(`Command failed:`, error);
+    await msg.channel
+      .send("There was an error trying to execute that command!")
+      .catch((sendError) => console.error("Could not report the command failure:", sendError));
   }
 });
 
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
-  if (reaction.partial) {
-    try {
-      await reaction.fetch();
-    } catch (error) {
+  try {
+    if (user.bot) {
       return;
     }
+
+    if (reaction.partial) {
+      await reaction.fetch();
+    }
+    if (reaction.message.partial) {
+      await reaction.message.fetch();
+    }
+
+    const guildId = reaction.message.guild?.id;
+    if (!guildId) {
+      return;
+    }
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild || reaction.message.channel.id !== guild.catalogChannelId) {
+      return;
+    }
+
+    const emoji = reaction.emoji.name;
+    const emojiIndex = emoji ? emojiNumbers.indexOf(emoji) : -1;
+    if (!emoji || emojiIndex === -1 || !reaction.message.content) {
+      return;
+    }
+
+    const line = reaction.message.content.split("\n")[emojiIndex];
+    const seriesName = line ? parseCatalogLine(emoji, line) : null;
+    if (!seriesName) {
+      return;
+    }
+
+    const serie = await prisma.series.findUnique({ where: { name: seriesName } });
+    if (!serie) {
+      console.error(`Catalog reaction referenced an unknown series: ${JSON.stringify(seriesName)}`);
+      return;
+    }
+
+    const key = { guildId: guild.id, seriesId: serie.id, userId: user.id };
+    const existing = await prisma.subscription.findUnique({ where: { guildId_seriesId_userId: key } });
+
+    if (existing) {
+      await prisma.subscription.delete({ where: { guildId_seriesId_userId: key } });
+    } else {
+      await prisma.subscription.create({ data: key });
+    }
+
+    // Needs Manage Messages. Uncaught, this let any member crash the bot on demand
+    // simply by reacting in a channel where the permission was missing.
+    await reaction.users.remove(user.id).catch((error) => console.error("Could not clear the reaction:", error));
+  } catch (error) {
+    console.error("Reaction handler failed:", error);
   }
-  if (!reaction.message.guild) {
-    return;
-  }
-
-  if (user.bot) {
-    return;
-  }
-
-  const guild = await prisma.guild.findUnique({
-    where: {
-      id: reaction.message.guild.id,
-    },
-  });
-
-  if (!guild) {
-    return;
-  }
-
-  if (reaction.message.channel.id !== guild.catalogChannelId) {
-    return;
-  }
-
-  const emoji = reaction.emoji.name;
-
-  if (!emoji || !emojiNumbers.includes(emoji)) {
-    return;
-  }
-
-  const message = reaction.message;
-  if (!message.content) {
-    return;
-  }
-
-  const messageSeries = message.content.split("\n");
-
-  const seriesFromIndex = messageSeries[emojiNumbers.indexOf(emoji)];
-
-  if (!seriesFromIndex) {
-    return;
-  }
-
-  const seriesName = seriesFromIndex
-    .replace(/[\u{0080}-\u{FFFF}]/gu, "")
-    .slice(2)
-    .split(" -> ")[0];
-
-  const serie = await prisma.series.findUnique({
-    where: {
-      name: seriesName,
-    },
-  });
-
-  if (!serie) {
-    return;
-  }
-
-  const resolvedUser = await client.users.fetch(user.id);
-
-  const subscriptionExists = await prisma.subscription.findUnique({
-    where: {
-      guildId_seriesId_userId: {
-        guildId: guild.id,
-        seriesId: serie.id,
-        userId: user.id,
-      },
-    },
-  });
-
-  if (subscriptionExists) {
-    await prisma.subscription.delete({
-      where: {
-        guildId_seriesId_userId: {
-          guildId: guild.id,
-          seriesId: serie.id,
-          userId: user.id,
-        },
-      },
-    });
-    await reaction.users.remove(resolvedUser);
-    return;
-  }
-
-  await prisma.subscription.create({
-    data: {
-      guildId: guild.id,
-      seriesId: serie.id,
-      userId: user.id,
-    },
-  });
-
-  await reaction.users.remove(resolvedUser);
 });
 
-const job = schedule.scheduleJob("*/30 * * * *", async () => {
-  console.log(`Checking for updates at ${new Date().toISOString()}`);
-  const series = await prisma.series.findMany({
-    include: {
-      subscription: true,
-    },
-  });
+/**
+ * A pass takes over two minutes with pacing, and a stalled upstream could make it
+ * much longer. Without this, the 30-minute schedule would stack passes on top of
+ * each other and double-post.
+ */
+let updateCheckRunning = false;
 
-  const guildsSeries = await prisma.guildsSeries.findMany({
-    where: {},
-    include: {
-      guild: true,
-    },
-  });
+const runUpdateCheck = async () => {
+  if (updateCheckRunning) {
+    console.warn("Previous update check is still running — skipping this tick");
+    return;
+  }
+  updateCheckRunning = true;
 
-  const seriesUpdates = await fetchManga(
-    series.map((s) => ({
-      url: s.url,
-      source: s.source,
-    }))
-  );
+  try {
+    console.log(`Checking for updates at ${new Date().toISOString()}`);
 
-  for (const update of seriesUpdates) {
-    const serie = series.find((s) => s.name === update.title);
-    if (!serie) {
-      console.log(`Could not find serie ${update.title} - for update ${update.chapterUrl}`);
+    const series = await prisma.series.findMany({ include: { subscription: true } });
+    const guildsSeries = await prisma.guildsSeries.findMany({ include: { guild: true } });
+
+    const updates = await fetchManga(series.map((s) => ({ url: s.url, source: s.source })));
+
+    for (const update of updates) {
+      try {
+        await applyUpdate(update, series, guildsSeries);
+      } catch (error) {
+        console.error(`Failed to apply update for ${update.title}:`, error);
+      }
+    }
+
+    console.log(`Finished checking for updates at ${new Date().toISOString()}`);
+  } catch (error) {
+    console.error("Update check failed:", error);
+  } finally {
+    updateCheckRunning = false;
+  }
+};
+
+type SeriesRow = Awaited<ReturnType<typeof prisma.series.findMany<{ include: { subscription: true } }>>>[number];
+type GuildSeriesRow = Awaited<ReturnType<typeof prisma.guildsSeries.findMany<{ include: { guild: true } }>>>[number];
+
+const applyUpdate = async (
+  update: Awaited<ReturnType<typeof fetchManga>>[number],
+  series: SeriesRow[],
+  guildsSeries: GuildSeriesRow[]
+) => {
+  // Joined on the URL we asked for, not on the scraped title. Titles are mutable
+  // site text: a re-romanisation froze "MAD (OOTORI Yuusuke)" at chapter 36, and an
+  // appended word froze another at 212, both silently and both permanently.
+  const serie = series.find((s) => s.url === update.seriesUrl);
+  if (!serie) {
+    console.error(`No series row for ${update.seriesUrl} (scraped as ${JSON.stringify(update.title)})`);
+    return;
+  }
+
+  // Parse float here since sometimes we'll have partial chapters
+  // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse
+  const scrapedChapter = parseFloat(update.latestChapter);
+  const knownChapter = parseFloat(serie.latestChapter);
+
+  // A non-numeric scrape used to reach the comparison as NaN, where every `>` is
+  // false — indistinguishable from "no new chapter", and permanent.
+  if (!Number.isFinite(scrapedChapter)) {
+    console.error(`Refusing to compare non-numeric chapter ${JSON.stringify(update.latestChapter)} for ${serie.name}`);
+    return;
+  }
+
+  // If a past parse bug stored a non-numeric value, every future comparison against
+  // it would also be false. Treat that as unknown so the next good scrape repairs it.
+  const isNewChapter = !Number.isFinite(knownChapter) || scrapedChapter > knownChapter;
+
+  if (!isNewChapter) {
+    await prisma.series.update({
+      where: { id: serie.id },
+      data: { lastCheckedAt: new Date(), imageUrl: update.imageUrl },
+    });
+    return;
+  }
+
+  console.log(`New chapter for ${serie.name} - ${update.chapterUrl}`);
+
+  let delivered = false;
+
+  for (const guildSeries of guildsSeries.filter((gs) => gs.seriesId === serie.id)) {
+    const channelId = guildSeries.guild.updatesChannelId;
+    if (!channelId) {
+      console.warn(`${guildSeries.guild.name} has no updates channel — skipping ${serie.name}`);
       continue;
     }
-    // Parse float here since sometimes we'll have partial chapters
-    // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse
-    if (parseFloat(update.latestChapter) > parseFloat(serie.latestChapter)) {
-      console.log(`New chapter for ${serie.name} - ${update.chapterUrl}`);
-      const relevantGuilds = guildsSeries.filter((gs) => gs.seriesId === serie.id);
 
-      for (const guild of relevantGuilds) {
-        if (!guild.guild.updatesChannelId) {
-          // Can't post updates if they don't have a channel set
-          continue;
-        }
-        const channel = client.channels.cache.get(guild.guild.updatesChannelId);
-
-        if (channel && channel.isTextBased() && channel.isSendable()) {
-          const ok = await channel.send(
-            `New chapter of ${serie.name} is out! ${update.chapterUrl}\n${serie.subscription
-              .map((s) => `<@${s.userId}>`)
-              .join(" ")}`
-          );
-          ok
-            ? console.log(`Posted update for ${serie.name} in ${guild.guild.name}`)
-            : console.log(`Failed to post update for ${serie.name} in ${guild.guild.name}`);
-        }
+    try {
+      // fetch, not cache.get: the cache is cold on the first pass after a restart,
+      // and a miss looked identical to "posted successfully".
+      const channel = await client.channels.fetch(channelId);
+      if (!channel?.isTextBased() || !channel.isSendable()) {
+        console.warn(`Cannot send to ${channelId} in ${guildSeries.guild.name}`);
+        continue;
       }
 
-      await prisma.series.update({
-        where: {
-          id: serie.id,
-        },
-        data: {
-          latestChapter: update.latestChapter,
-          lastCheckedAt: new Date(),
-          imageUrl: update.imageUrl,
-        },
-      });
-    } else {
-      // console.log(`No new chapter for ${serie.name}`);
-      await prisma.series.update({
-        where: {
-          id: serie.id,
-        },
-        data: {
-          lastCheckedAt: new Date(),
-          imageUrl: update.imageUrl,
-        },
-      });
+      const mentions = serie.subscription
+        .filter((s) => s.guildId === guildSeries.guildId)
+        .map((s) => `<@${s.userId}>`)
+        .join(" ");
+
+      await channel.send(`New chapter of ${serie.name} is out! ${update.chapterUrl}\n${mentions}`.trim());
+      delivered = true;
+      console.log(`Posted update for ${serie.name} in ${guildSeries.guild.name}`);
+    } catch (error) {
+      console.error(`Failed to post ${serie.name} in ${guildSeries.guild.name}:`, error);
     }
   }
 
-  console.log(
-    `Finished checking for updates at ${new Date().toISOString()}, next check at ${job.nextInvocation().toISOString()}`
-  );
-});
+  // Only advance the chapter once it actually reached somebody. Advancing on a
+  // failed send lost that chapter permanently — the next pass compares against the
+  // new number and sees nothing new.
+  await prisma.series.update({
+    where: { id: serie.id },
+    data: {
+      ...(delivered ? { latestChapter: update.latestChapter } : {}),
+      lastCheckedAt: new Date(),
+      imageUrl: update.imageUrl,
+    },
+  });
 
-client.login(process.env.DISCORD_TOKEN).then(() => {
-  job.invoke();
+  if (!delivered) {
+    console.error(`Nobody received ${serie.name} ch.${update.latestChapter} — leaving it pending for the next pass`);
+  }
+};
+
+schedule.scheduleJob("*/30 * * * *", runUpdateCheck);
+
+// Without this the container is SIGKILLed mid-pass, which can land between a
+// successful send and the row update and re-announce the chapter on restart.
+const shutdown = async (signal: string) => {
+  console.log(`Received ${signal}, shutting down`);
+  await schedule.gracefulShutdown().catch(() => {});
+  await client.destroy().catch(() => {});
+  await prisma.$disconnect().catch(() => {});
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error("Failed to log in:", error);
+  process.exit(1);
 });

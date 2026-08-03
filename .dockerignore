@@ -1,1 +1,12 @@
 node_modules
+
+# Secrets — .env is read from the runtime environment (docker-compose env_file),
+# never baked into the image.
+.env
+.env.*
+
+# Local postgres volume from docker-compose.
+data
+
+.git
+.github

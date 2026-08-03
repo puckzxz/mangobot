@@ -1,4 +1,4 @@
-import { SeriesSource } from "@prisma/client";
+import { SeriesSource } from "../db";
 import { Command } from "../types/command";
 import fetchManga from "../fetch-manga";
 import { tryToDetermineSeriesSource } from "../utils/try-to-determine-series-source";

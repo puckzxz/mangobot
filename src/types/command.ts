@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../db";
 import { Client, Message } from "discord.js";
 
 export interface Context {

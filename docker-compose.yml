@@ -1,24 +1,28 @@
-version: "3.1"
+# Local development stack. Production runs the same image against an external
+# Postgres, so the `db` service here is for local use only.
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "3000:3000"
+    # No ports: the bot is a Discord gateway client and listens on nothing.
     env_file:
       - .env
     restart: always
     depends_on:
       db:
         condition: service_healthy
-    cap_add:
-      - SYS_ADMIN
+    # cap_add: SYS_ADMIN used to be here for Chrome's sandbox. There is no browser
+    # any more, and it granted mount/namespace powers to a process that spent its
+    # time parsing third-party HTML.
+
   db:
     image: postgres:15.3
     restart: always
     ports:
-      - "5432:5432"
+      # Bound to loopback: this was published on 0.0.0.0 with the password below,
+      # which put a Postgres instance on every interface of the host.
+      - "127.0.0.1:5432:5432"
     volumes:
       - ./data:/var/lib/postgresql/data
     healthcheck:

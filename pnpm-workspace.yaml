@@ -1,0 +1,47 @@
+# pnpm settings. As of pnpm 10 these live here rather than in .npmrc.
+# Reference: https://pnpm.io/settings and https://pnpm.io/supply-chain-security
+
+# --- Supply-chain hardening -------------------------------------------------
+
+# Minutes a version must have been public before pnpm will resolve it (5 days).
+# Compromised-package incidents are almost always caught and yanked well inside
+# this window, so waiting costs nothing and blocks the common attack.
+minimumReleaseAge: 7200
+
+minimumReleaseAgeExclude:
+  # brace-expansion 5.0.8 fixes GHSA-mh99-v99m-4gvg (CVSS 7.5, unbounded expansion
+  # OOM); every prior release is affected, so the previous 5.0.7 pin is vulnerable
+  # and there is no aged alternative. Published 2026-07-23, inside the cooldown.
+  - brace-expansion
+
+# Fail the install if a package's trust level regressed versus its previous
+# releases (e.g. it stopped publishing with provenance).
+trustPolicy: no-downgrade
+# ...but don't apply that check to releases older than 30 days, which predate
+# widespread provenance and would otherwise fail every install.
+trustPolicyIgnoreAfter: 43200
+
+# Transitive deps may not pull from git URLs or raw tarballs — registry only, so
+# the whole tree stays auditable and reproducible.
+blockExoticSubdeps: true
+
+# --- Dependency build scripts ----------------------------------------------
+
+# Installs fail rather than silently skipping an unreviewed postinstall script.
+strictDepBuilds: true
+
+# The only dependencies permitted to run install/build lifecycle scripts.
+# Anything not listed here has its scripts blocked; adding an entry is a
+# deliberate review step, not a default.
+onlyBuiltDependencies:
+  # postinstall runs `prisma generate` to emit the typed client.
+  - "@prisma/client"
+  - prisma
+  # Fetches the platform-specific query-engine binaries.
+  - "@prisma/engines"
+
+# --- Ergonomics -------------------------------------------------------------
+
+# `pnpm run <script>` refuses to run against a stale node_modules instead of
+# quietly using whatever happens to be on disk.
+verifyDepsBeforeRun: error

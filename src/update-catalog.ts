@@ -1,9 +1,10 @@
 import prisma from "./prisma";
 import client from "./client";
 import { emojiNumbers } from "./emoji";
+import { formatCatalogLine } from "./catalog-line";
 
-const chunkArray = (array: any[], chunkSize: number): string[][] => {
-  const chunks = [];
+const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
+  const chunks: T[][] = [];
   for (let i = 0; i < array.length; i += chunkSize) {
     chunks.push(array.slice(i, i + chunkSize));
   }
@@ -33,15 +34,15 @@ export const updateCatalog = async (guildId: string) => {
     return;
   }
 
-  const messages = await channel.messages.fetch();
+  // Only our own messages, and never mind if one was already deleted.
+  // The old guard also tested `m.member?.client.user.bot`, which reads the *client's*
+  // user (always true) and short-circuited to skip whenever the author's GuildMember
+  // was not cached — leaving stale catalog pages behind with live reactions on them.
+  const messages = await channel.messages.fetch({ limit: 100 });
   await Promise.all(
-    messages.map((m) => {
-      if (m.author.id !== client.user?.id || !m.member?.client.user.bot) {
-        return;
-      }
-
-      return m.delete();
-    })
+    messages
+      .filter((m) => m.author.id === client.user?.id)
+      .map((m) => m.delete().catch((error) => console.error("failed to delete a catalog message:", error)))
   );
 
   const guildSeries = await prisma.guildsSeries.findMany({
@@ -58,17 +59,13 @@ export const updateCatalog = async (guildId: string) => {
 
   const series = guildSeries.map((gs) => gs.series);
 
-  const titles = series.map((s) => `${s.name} -> [${s.source}](<${s.url}>)`);
+  // One page per available emoji — a page longer than that would render entries
+  // nobody could react to.
+  const pages = chunkArray(series, emojiNumbers.length);
 
-  const chunkedTitles = chunkArray(titles, 10);
-
-  for (const chunk of chunkedTitles) {
-    for (const index in chunk) {
-      chunk[index] = `${emojiNumbers[index]} ${chunk[index]}`;
-    }
-  }
-
-  const messagesToSend = chunkedTitles.map((chunk) => chunk.join("\n"));
+  const messagesToSend = pages.map((page) =>
+    page.map((s, index) => formatCatalogLine(emojiNumbers[index]!, s)).join("\n")
+  );
 
   for (const message of messagesToSend) {
     const sentMessage = await channel.send(message);
