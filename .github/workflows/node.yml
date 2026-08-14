@@ -51,7 +51,7 @@ jobs:
         run: |
           docker run --rm --entrypoint sh mangobot:ci -c '
             set -e
-            command -v bun
+            bun --version
             command -v pnpm
             test -x ./start.sh
             head -c 2 ./start.sh | grep -q "#!"

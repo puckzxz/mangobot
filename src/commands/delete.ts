@@ -1,52 +1,33 @@
 import { Command } from "../types/command";
-import { updateCatalog } from "../update-catalog";
+import { removeSeriesFromGuild } from "../series-service";
 
 const command: Command = {
   name: "delete",
   description: "Deletes a series from the database",
   group: "manga",
   usage: "delete <url>",
-  run: async ({ msg, prisma }, args) => {
+  run: async ({ msg }, args) => {
     const channel = msg.channel;
     if (!channel.isTextBased() || channel.isDMBased()) {
       return;
     }
 
-    if (!args) {
-      channel.send("Please provide a url");
-      return;
-    }
-
-    const url = args[0];
-
+    const url = args?.[0];
     if (!url) {
       channel.send("Please provide a url");
       return;
     }
 
-    const series = await prisma.series.findUnique({
-      where: {
-        url,
-      },
-    });
+    const result = await removeSeriesFromGuild(msg.guild!.id, { url });
 
-    if (!series) {
-      channel.send("Could not find series");
+    if (!result.ok) {
+      channel.send(
+        result.reason === "not-found" ? "Could not find series" : "That series is not in this server's catalog"
+      );
       return;
     }
 
-    await prisma.guildsSeries.delete({
-      where: {
-        guildId_seriesId: {
-          guildId: msg.guild!.id,
-          seriesId: series.id,
-        },
-      },
-    });
-
-    channel.send(`Deleted ${series.name}`);
-
-    updateCatalog(msg.guild!.id);
+    channel.send(`Deleted ${result.seriesName}`);
   },
 };
 

@@ -1,6 +1,6 @@
 # The bun binary is lifted from the official image rather than downloaded at build
 # time, so the version is pinned and the build needs no network for it.
-FROM oven/bun:1.2.10 AS bun
+FROM oven/bun:1.3.14 AS bun
 
 # Every source is now a plain HTTP call, so this no longer needs the puppeteer image
 # and the ~1GB of bundled Chrome that came with it. Node is still the host for the
@@ -30,5 +30,11 @@ COPY --chown=node:node . .
 # Emits the typed Prisma client into node_modules.
 RUN pnpm exec prisma generate
 
-# No port: the bot is a Discord gateway client and does not listen on one.
+# Bun.serve bundles the web UI at runtime; production mode minifies and serves
+# hashed, cacheable assets instead of the dev/HMR path.
+ENV NODE_ENV=production
+
+# The web UI. Documentation only — publishing happens in docker-compose.yml.
+EXPOSE 3000
+
 CMD ["./start.sh"]

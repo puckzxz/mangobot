@@ -12,6 +12,12 @@ const chunkArray = <T>(array: T[], chunkSize: number): T[][] => {
 };
 
 export const updateCatalog = async (guildId: string) => {
+  // Web mutations can fire this before — or entirely without — a gateway login,
+  // where client.channels.fetch would throw rather than find anything.
+  if (!client.isReady()) {
+    return;
+  }
+
   const guild = await prisma.guild.findUnique({
     where: {
       id: guildId,

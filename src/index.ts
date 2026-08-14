@@ -6,6 +6,7 @@ import fetchManga from "./fetch-manga";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
+import { startWebServer } from "./web/server";
 
 /**
  * Nothing below is allowed to take the process down. Bun exits with code 1 on an
@@ -271,13 +272,19 @@ const applyUpdate = async (
   }
 };
 
-schedule.scheduleJob("*/30 * * * *", runUpdateCheck);
+// The web UI shares this process so it can reuse the Prisma singleton and reach
+// the Discord client for catalog rebuilds. A failed bind (port already taken)
+// throws and takes startup down loudly, same as a missing DATABASE_URL.
+const server = startWebServer();
 
 // Without this the container is SIGKILLed mid-pass, which can land between a
 // successful send and the row update and re-announce the chapter on restart.
 const shutdown = async (signal: string) => {
   console.log(`Received ${signal}, shutting down`);
   await schedule.gracefulShutdown().catch(() => {});
+  // Force-close in-flight web requests: a hung add-scrape must not out-wait
+  // Docker's SIGTERM grace. Prisma disconnects last so handlers can still write.
+  await server.stop(true).catch(() => {});
   await client.destroy().catch(() => {});
   await prisma.$disconnect().catch(() => {});
   process.exit(0);
@@ -286,7 +293,15 @@ const shutdown = async (signal: string) => {
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 
-client.login(process.env.DISCORD_TOKEN).catch((error) => {
-  console.error("Failed to log in:", error);
-  process.exit(1);
-});
+if (process.env.DISCORD_TOKEN) {
+  schedule.scheduleJob("*/30 * * * *", runUpdateCheck);
+
+  client.login(process.env.DISCORD_TOKEN).catch((error) => {
+    console.error("Failed to log in:", error);
+    process.exit(1);
+  });
+} else {
+  // Deliberate, for local frontend work: the web UI is fully functional against
+  // the database alone. A prod .env always sets the token.
+  console.warn("DISCORD_TOKEN is not set — web-only mode: no Discord login, no scheduled update checks");
+}

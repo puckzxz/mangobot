@@ -18,6 +18,10 @@ const SOURCE_BY_HOSTNAME: Record<string, SeriesSource> = {
   "www.weebcentral.com": SeriesSource.WeebCentral,
 };
 
+/** Distinct sites, for user-facing "supported sources" messages — derived from the
+ * table above so it can never drift from what is actually accepted. */
+export const SUPPORTED_HOSTNAMES = [...new Set(Object.keys(SOURCE_BY_HOSTNAME).map((h) => h.replace(/^www\./, "")))];
+
 export const tryToDetermineSeriesSource = (url: string): SeriesSource | null => {
   let parsed: URL;
   try {

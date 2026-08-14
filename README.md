@@ -24,6 +24,16 @@ will not compile until it is routed.
 Both scraped sources sit behind Cloudflare and enforce a burst quota, so requests are
 paced (see `REQUEST_GAP_MS` in each scraper) and WeebCentral retries on 429.
 
+## Web UI
+
+The same process serves a catalog manager on port `3000` (`PORT` to change): view,
+add, and remove series. It is a React SPA bundled by Bun at runtime — no build step
+— sharing `src/series-service.ts` with the Discord commands, so both surfaces behave
+identically. No auth.
+
+For local frontend work, leave `DISCORD_TOKEN` empty (web-only mode) and run
+`bun run scripts/seed-dev.ts` once to create a guild for the API to manage.
+
 ## Running it
 
 Requires **Bun** (the runtime) and **Node** (the Prisma CLI). `pnpm` is pinned via the
@@ -45,20 +55,22 @@ pnpm start
 `start.sh` applies migrations and then execs the bot; it exits non-zero if migrations
 fail rather than starting against an unmigrated database.
 
-The bot is a Discord gateway client and listens on no port, so the image exposes none.
+The image exposes port 3000 for the web UI; compose publishes it.
 
 ## Layout
 
 ```
 src/
-  index.ts          bot entrypoint, scheduled update loop, event handlers
-  fetch-manga.ts    routes each series to its scraper
-  scrapers/         one module per source, all returning ScraperResult
-  commands/         !add, !delete, !setcatalog, !setupdates, !subscriptions, !updatecatalog
-  catalog-line.ts   renders and parses the catalog message (both halves, one file)
-  db.ts             re-exports the generated Prisma client
-  prisma.ts         the configured client — the only place the driver adapter is wired
-scripts/            one-off maintenance scripts, safe by default, --apply to write
+  index.ts            entrypoint: bot, web server, scheduled update loop, event handlers
+  series-service.ts   add/remove/list series — the one implementation behind commands and API
+  fetch-manga.ts      routes each series to its scraper
+  scrapers/           one module per source, all returning ScraperResult
+  commands/           !add, !delete, !setcatalog, !setupdates, !subscriptions, !updatecatalog
+  web/                the web UI: server.ts (Bun.serve routes), api-types.ts (wire contract), React SPA
+  catalog-line.ts     renders and parses the catalog message (both halves, one file)
+  db.ts               re-exports the generated Prisma client
+  prisma.ts           the configured client — the only place the driver adapter is wired
+scripts/              one-off maintenance scripts, safe by default, --apply to write
 ```
 
 ## Gotchas worth knowing

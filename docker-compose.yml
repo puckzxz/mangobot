@@ -5,7 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # No ports: the bot is a Discord gateway client and listens on nothing.
+    ports:
+      # The catalog web UI (no auth — private-network deployment).
+      - "3000:3000"
     env_file:
       - .env
     restart: always
