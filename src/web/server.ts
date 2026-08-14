@@ -18,6 +18,7 @@ const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null
   latestChapter: entry.series.latestChapter,
   imageUrl: entry.series.imageUrl,
   lastCheckedAt: entry.series.lastCheckedAt.toISOString(),
+  latestChapterAt: entry.series.latestChapterAt?.toISOString() ?? null,
   addedAt: entry.addedAt.toISOString(),
   subscribers: entry.subscriberIds.map((id) => ({ id, name: names.get(id) ?? null })),
 });

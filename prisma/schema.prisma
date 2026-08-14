@@ -51,6 +51,11 @@ model Series {
   updatedAt     DateTime @updatedAt @map("updated_at")
   lastCheckedAt DateTime @default(now()) @map("last_checked_at")
 
+  // When the last new chapter was announced. Null for rows that have not had a
+  // chapter since the column was added — updatedAt/lastCheckedAt cannot stand in,
+  // as every 30-minute pass rewrites them for all series.
+  latestChapterAt DateTime? @map("latest_chapter_at")
+
   source SeriesSource
 
   guilds       GuildsSeries[]

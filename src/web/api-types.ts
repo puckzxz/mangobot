@@ -21,6 +21,8 @@ export interface SeriesDto {
   imageUrl: string | null;
   /** ISO timestamp of the last scrape that saw this series. */
   lastCheckedAt: string;
+  /** ISO timestamp of the last announced chapter; null until one lands post-Aug 2026. */
+  latestChapterAt: string | null;
   /** ISO timestamp of when the series was added to the guild's catalog. */
   addedAt: string;
   subscribers: SubscriberDto[];

@@ -261,7 +261,7 @@ const applyUpdate = async (
   await prisma.series.update({
     where: { id: serie.id },
     data: {
-      ...(delivered ? { latestChapter: update.latestChapter } : {}),
+      ...(delivered ? { latestChapter: update.latestChapter, latestChapterAt: new Date() } : {}),
       lastCheckedAt: new Date(),
       imageUrl: update.imageUrl,
     },

@@ -11,7 +11,8 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["minute", 60],
 ];
 
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+// Narrow keeps card lines compact: "3d ago" instead of "3 days ago".
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "narrow" });
 
 const relativeTime = (iso: string): string => {
   const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
@@ -33,8 +34,6 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [coverBroken, setCoverBroken] = useState(false);
-
-  const subscriberNames = series.subscribers.map((s) => s.name ?? s.id).join(", ");
 
   const remove = async () => {
     setBusy(true);
@@ -76,7 +75,10 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
           <span className="badge" data-source={series.source}>
             {series.source}
           </span>
-          <span className="chapter">Ch. {series.latestChapter}</span>
+          <span className="chapter">
+            Ch. {series.latestChapter}
+            {series.latestChapterAt && <span className="chapter-when"> · {relativeTime(series.latestChapterAt)}</span>}
+          </span>
         </div>
 
         <div className="card-times">
@@ -86,8 +88,19 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
         {error && <div className="card-error">{error}</div>}
 
         <div className="card-footer">
-          <span className="subs" title={subscriberNames || undefined}>
-            {series.subscribers.length > 0 ? `🔔 ${subscriberNames}` : ""}
+          <span className="subs">
+            {series.subscribers.length > 0 && (
+              <>
+                🔔 {series.subscribers.length}
+                <span className="subs-pop">
+                  {series.subscribers.map((s) => (
+                    <span key={s.id} className="subs-pop-row">
+                      {s.name ?? s.id}
+                    </span>
+                  ))}
+                </span>
+              </>
+            )}
           </span>
           {confirming ? (
             <span className="confirm-row">
