@@ -6,6 +6,12 @@ import type { SeriesSource } from "../db";
  * this module is bundled into the client, where Prisma must not follow.
  */
 
+export interface SubscriberDto {
+  id: string;
+  /** Discord display name; null when unresolvable (web-only mode, deleted account). */
+  name: string | null;
+}
+
 export interface SeriesDto {
   id: string;
   name: string;
@@ -17,7 +23,7 @@ export interface SeriesDto {
   lastCheckedAt: string;
   /** ISO timestamp of when the series was added to the guild's catalog. */
   addedAt: string;
-  subscriberCount: number;
+  subscribers: SubscriberDto[];
 }
 
 export interface ListSeriesResponse {

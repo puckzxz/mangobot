@@ -34,6 +34,8 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [coverBroken, setCoverBroken] = useState(false);
 
+  const subscriberNames = series.subscribers.map((s) => s.name ?? s.id).join(", ");
+
   const remove = async () => {
     setBusy(true);
     setError(null);
@@ -84,7 +86,9 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
         {error && <div className="card-error">{error}</div>}
 
         <div className="card-footer">
-          <span className="subs">{series.subscriberCount > 0 ? `🔔 ${series.subscriberCount} subscribed` : ""}</span>
+          <span className="subs" title={subscriberNames || undefined}>
+            {series.subscribers.length > 0 ? `🔔 ${subscriberNames}` : ""}
+          </span>
           {confirming ? (
             <span className="confirm-row">
               Remove?

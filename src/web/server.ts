@@ -1,5 +1,6 @@
 import page from "./index.html";
 import prisma from "../prisma";
+import client from "../client";
 import { addSeriesToGuild, listGuildSeries, removeSeriesFromGuild, GuildSeriesEntry } from "../series-service";
 import { SUPPORTED_HOSTNAMES } from "../utils/try-to-determine-series-source";
 import { AddSeriesRequest, AddSeriesResponse, ApiError, ListSeriesResponse, SeriesDto } from "./api-types";
@@ -9,7 +10,7 @@ import { AddSeriesRequest, AddSeriesResponse, ApiError, ListSeriesResponse, Seri
  * deployed on a private network.
  */
 
-const toDto = (entry: GuildSeriesEntry): SeriesDto => ({
+const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null>): SeriesDto => ({
   id: entry.series.id,
   name: entry.series.name,
   url: entry.series.url,
@@ -18,8 +19,44 @@ const toDto = (entry: GuildSeriesEntry): SeriesDto => ({
   imageUrl: entry.series.imageUrl,
   lastCheckedAt: entry.series.lastCheckedAt.toISOString(),
   addedAt: entry.addedAt.toISOString(),
-  subscriberCount: entry.subscriberCount,
+  subscribers: entry.subscriberIds.map((id) => ({ id, name: names.get(id) ?? null })),
 });
+
+/**
+ * Subscriber rows store Discord user ids; the display names live with the bot.
+ * Explicit-id member fetches need no privileged intent and carry per-guild
+ * nicknames; `time` caps the gateway wait so a hiccup cannot stall the list.
+ */
+const resolveSubscriberNames = async (guildId: string, ids: string[]): Promise<Map<string, string | null>> => {
+  const names = new Map<string, string | null>(ids.map((id) => [id, null]));
+  if (!client.isReady() || ids.length === 0) {
+    return names;
+  }
+
+  try {
+    const guild = await client.guilds.fetch(guildId);
+    const members = await guild.members.fetch({ user: ids, time: 5_000 });
+    for (const [id, member] of members) {
+      names.set(id, member.displayName);
+    }
+  } catch (error) {
+    console.error("Could not fetch guild members for subscriber names:", error);
+  }
+
+  // Anyone still unresolved (left the guild, or the member fetch failed) gets
+  // their global profile name; discord.js caches these after the first lookup.
+  for (const id of ids) {
+    if (names.get(id) === null) {
+      try {
+        names.set(id, (await client.users.fetch(id)).displayName);
+      } catch {
+        // Deleted or unknown account — the UI falls back to the raw id.
+      }
+    }
+  }
+
+  return names;
+};
 
 const apiError = (error: string, status: number) => Response.json({ error } satisfies ApiError, { status });
 
@@ -51,9 +88,10 @@ export const startWebServer = () => {
           }
 
           const entries = await listGuildSeries(guild.id);
+          const names = await resolveSubscriberNames(guild.id, [...new Set(entries.flatMap((e) => e.subscriberIds))]);
           return Response.json({
             guild: { id: guild.id, name: guild.name },
-            series: entries.map(toDto),
+            series: entries.map((entry) => toDto(entry, names)),
           } satisfies ListSeriesResponse);
         },
 
@@ -95,13 +133,16 @@ export const startWebServer = () => {
             }
           }
 
-          const subscriberCount = await prisma.subscription.count({
+          const subscriptions = await prisma.subscription.findMany({
             where: { guildId: guild.id, seriesId: result.series.id },
+            select: { userId: true },
           });
+          const subscriberIds = subscriptions.map((sub) => sub.userId);
+          const names = await resolveSubscriberNames(guild.id, subscriberIds);
 
           return Response.json(
             {
-              series: toDto({ series: result.series, addedAt: result.addedAt, subscriberCount }),
+              series: toDto({ series: result.series, addedAt: result.addedAt, subscriberIds }, names),
               alreadyInCatalog: result.alreadyInCatalog,
             } satisfies AddSeriesResponse,
             { status: result.alreadyInCatalog ? 200 : 201 }

@@ -22,7 +22,7 @@ export type RemoveSeriesResult =
 export type GuildSeriesEntry = {
   series: Series;
   addedAt: Date;
-  subscriberCount: number;
+  subscriberIds: string[];
 };
 
 const refreshCatalog = (guildId: string) =>
@@ -131,7 +131,7 @@ export const listGuildSeries = async (guildId: string): Promise<GuildSeriesEntry
     orderBy: { createdAt: "asc" },
     include: {
       series: {
-        include: { _count: { select: { subscription: { where: { guildId } } } } },
+        include: { subscription: { where: { guildId }, select: { userId: true } } },
       },
     },
   });
@@ -139,6 +139,6 @@ export const listGuildSeries = async (guildId: string): Promise<GuildSeriesEntry
   return rows.map((row) => ({
     series: row.series,
     addedAt: row.createdAt,
-    subscriberCount: row.series._count.subscription,
+    subscriberIds: row.series.subscription.map((sub) => sub.userId),
   }));
 };
