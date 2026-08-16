@@ -1,0 +1,21 @@
+-- Drops two columns nothing reads or writes any more.
+--
+-- DESTRUCTIVE, and the one thing here that makes a rollback awkward: an image from
+-- before f1382ab selects source_chapter_count and would fail every query against
+-- the series table. Roll back no further than f860cea.
+--
+-- series.source_chapter_count held a count of chapter entries while latest_chapter
+-- holds a chapter number, so every value in it was being compared against the wrong
+-- unit. Superseded by source_highest_chapter in 20260816090000, which has been
+-- populating since. Nothing is migrated across: the old values are not a worse
+-- version of the new ones, they answer a different question, and each row
+-- repopulates from its own next scrape.
+--
+-- guilds.catalog_channel_id pointed at the channel the reaction catalog was posted
+-- in. The catalog was deleted in f860cea; the id is inert.
+--
+-- Both column values were snapshotted to ~/mangobot-backups/dropped-columns-20260816.json
+-- first. Neither is derived from anything a human entered except the catalog channel
+-- choice, which Discord still shows.
+ALTER TABLE "series" DROP COLUMN "source_chapter_count";
+ALTER TABLE "guilds" DROP COLUMN "catalog_channel_id";

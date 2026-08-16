@@ -18,7 +18,6 @@ model Guild {
 
   // The Discord text channel ID where series updates will be posted
   updatesChannelId String? @map("updates_channel_id")
-  catalogChannelId String? @map("catalog_channel_id")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -90,11 +89,6 @@ model Series {
   // permanently behind: 10 of the 11 flagged rows were arithmetic, not content.
   // Same units on both sides, or the subtraction means nothing.
   sourceHighestChapter Float? @map("source_highest_chapter")
-
-  // Superseded by sourceHighestChapter and no longer read or written. Kept for one
-  // release so the previous image still starts if this deploy has to be rolled
-  // back; the next migration drops it.
-  sourceChapterCount Int? @map("source_chapter_count")
 
   author String?
 
