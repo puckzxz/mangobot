@@ -47,14 +47,38 @@ model Series {
   // Relevant for sites like MangaDex where we can use the official API
   sourceId      String?  @map("source_id")
 
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  lastCheckedAt DateTime @default(now()) @map("last_checked_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Renamed from lastCheckedAt. It only ever advanced on a *successful* scrape, so
+  // the old name invited reading it as "we looked at this", which it never meant.
+  lastSuccessAt DateTime @default(now()) @map("last_success_at")
+
+  // Written every pass, success or failure, so "when did we last try" and "when did
+  // it last work" stop being the same column. Their gap is the staleness signal.
+  lastAttemptAt DateTime? @map("last_attempt_at")
+
+  // Health axis. Reset to zero by any successful scrape, so a series that recovers
+  // needs no intervention. Deliberately carries no "completed" value — a broken
+  // scraper must be structurally incapable of being recorded as a finished series.
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  lastFailureReason   String?   @map("last_failure_reason")
+  lastFailureMessage  String?   @map("last_failure_message")
+  lastFailureAt       DateTime? @map("last_failure_at")
+
+  // The scrape worked but the announcement did not reach anyone. Without this, a
+  // series nobody can be told about looks perfectly healthy.
+  deliveryFailedAt DateTime? @map("delivery_failed_at")
 
   // When the last new chapter was announced. Null for rows that have not had a
-  // chapter since the column was added — updatedAt/lastCheckedAt cannot stand in,
+  // chapter since the column was added — updatedAt/lastSuccessAt cannot stand in,
   // as every 30-minute pass rewrites them for all series.
   latestChapterAt DateTime? @map("latest_chapter_at")
+
+  // When the SOURCE published that chapter. latestChapterAt records when we
+  // noticed, which is a different thing and cannot answer "how long has this been
+  // quiet?" — every row would look fresh the moment the bot restarts.
+  latestChapterPublishedAt DateTime? @map("latest_chapter_published_at")
 
   source SeriesSource
 

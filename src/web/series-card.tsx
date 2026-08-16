@@ -35,6 +35,9 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [coverBroken, setCoverBroken] = useState(false);
 
+  const failing = series.consecutiveFailures > 0;
+  const published = series.latestChapterPublishedAt ?? series.latestChapterAt;
+
   const remove = async () => {
     setBusy(true);
     setError(null);
@@ -77,13 +80,21 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
           </span>
           <span className="chapter">
             Ch. {series.latestChapter}
-            {series.latestChapterAt && <span className="chapter-when"> · {relativeTime(series.latestChapterAt)}</span>}
+            {/* Prefer the source's own publish date — latestChapterAt only says when
+                the bot noticed, so every series looks fresh after a restart. */}
+            {published && <span className="chapter-when"> · {relativeTime(published)}</span>}
           </span>
         </div>
 
         <div className="card-times">
-          added {relativeTime(series.addedAt)} · checked {relativeTime(series.lastCheckedAt)}
+          added {relativeTime(series.addedAt)} · checked {relativeTime(series.lastSuccessAt)}
         </div>
+
+        {failing && (
+          <div className="card-warn" title={series.lastFailureMessage ?? undefined}>
+            ⚠ scrape failing ({series.lastFailureReason}) — {series.consecutiveFailures}&times; in a row
+          </div>
+        )}
 
         {error && <div className="card-error">{error}</div>}
 

@@ -4,6 +4,7 @@ import prisma from "./prisma";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
 import type { ScraperResult } from "./types/scraper";
+import { recordFailure, recordSuccess } from "./scrape-recorder";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
@@ -190,6 +191,7 @@ const runUpdateCheck = async () => {
 
         if (!outcome.ok) {
           failures.push(`${serie.name} [${outcome.reason}] ${outcome.detail}`);
+          await recordFailure(serie, outcome);
           continue;
         }
 
@@ -244,10 +246,7 @@ const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries
   const isNewChapter = !Number.isFinite(knownChapter) || scrapedChapter > knownChapter;
 
   if (!isNewChapter) {
-    await prisma.series.update({
-      where: { id: serie.id },
-      data: { lastCheckedAt: new Date(), imageUrl: update.imageUrl },
-    });
+    await recordSuccess(serie, update, { announced: false, deliveryFailed: false });
     return;
   }
 
@@ -284,17 +283,7 @@ const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries
     }
   }
 
-  // Only advance the chapter once it actually reached somebody. Advancing on a
-  // failed send lost that chapter permanently — the next pass compares against the
-  // new number and sees nothing new.
-  await prisma.series.update({
-    where: { id: serie.id },
-    data: {
-      ...(delivered ? { latestChapter: update.latestChapter, latestChapterAt: new Date() } : {}),
-      lastCheckedAt: new Date(),
-      imageUrl: update.imageUrl,
-    },
-  });
+  await recordSuccess(serie, update, { announced: delivered, deliveryFailed: !delivered });
 
   if (!delivered) {
     console.error(`Nobody received ${serie.name} ch.${update.latestChapter} — leaving it pending for the next pass`);

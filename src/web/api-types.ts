@@ -19,10 +19,23 @@ export interface SeriesDto {
   source: SeriesSource;
   latestChapter: string;
   imageUrl: string | null;
-  /** ISO timestamp of the last scrape that saw this series. */
-  lastCheckedAt: string;
+  /** ISO timestamp of the last scrape that actually succeeded. */
+  lastSuccessAt: string;
+  /** ISO timestamp of the last scrape attempt, successful or not. Null until one runs. */
+  lastAttemptAt: string | null;
+  /** Consecutive failed scrapes. 0 means healthy — any success resets it. */
+  consecutiveFailures: number;
+  /** Why the last scrape failed, e.g. "blocked" | "parse" | "empty". Null when healthy. */
+  lastFailureReason: string | null;
+  /** The failure detail, safe to render. Null when healthy. */
+  lastFailureMessage: string | null;
   /** ISO timestamp of the last announced chapter; null until one lands post-Aug 2026. */
   latestChapterAt: string | null;
+  /**
+   * ISO timestamp of when the SOURCE published the latest chapter. This is the one
+   * to show a human — `latestChapterAt` only records when the bot noticed.
+   */
+  latestChapterPublishedAt: string | null;
   /** ISO timestamp of when the series was added to the guild's catalog. */
   addedAt: string;
   subscribers: SubscriberDto[];

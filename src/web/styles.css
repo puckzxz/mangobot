@@ -24,6 +24,10 @@
     --muted: #5c6575;
     --accent: #d98b00;
     --accent-contrast: #ffffff;
+    /* These were only ever defined in the dark block, so error and success text
+       carried dark-mode values onto a white ground and fell below AA. */
+    --danger: #c5292e;
+    --ok: #2b7a3d;
     --shadow: 0 1px 2px rgb(16 24 40 / 0.08);
   }
 }
@@ -393,6 +397,13 @@ input:focus-visible {
 .card-error {
   font-size: 12.5px;
   color: var(--danger);
+}
+
+/* A failing scrape and a quiet series used to render identically. */
+.card-warn {
+  font-size: 12.5px;
+  color: var(--danger);
+  cursor: help;
 }
 
 /* ---------- page states ---------- */
