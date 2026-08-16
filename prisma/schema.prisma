@@ -80,15 +80,26 @@ model Series {
   upstreamStatus   String?   @map("upstream_status")
   upstreamStatusAt DateTime? @map("upstream_status_at")
 
-  // How many chapters the source claims to have. The gap against latestChapter is
-  // direct evidence that chapters exist which we have never announced — it already
-  // caught a series sitting at 112.7 against an upstream count of 116.
+  // The highest chapter NUMBER the source lists, gated chapters included. The gap
+  // against latestChapter (the newest we can actually read) is exactly the content
+  // sitting behind early access.
+  //
+  // It replaces source_chapter_count, which held a cardinality — Asura's own
+  // `chapterCount` is just `chapters.length`. Subtracting an ordinal from a count
+  // made every series numbered from chapter 0, or carrying a decimal chapter, look
+  // permanently behind: 10 of the 11 flagged rows were arithmetic, not content.
+  // Same units on both sides, or the subtraction means nothing.
+  sourceHighestChapter Float? @map("source_highest_chapter")
+
+  // Superseded by sourceHighestChapter and no longer read or written. Kept for one
+  // release so the previous image still starts if this deploy has to be rolled
+  // back; the next migration drops it.
   sourceChapterCount Int? @map("source_chapter_count")
 
   author String?
 
   // What the ORIGINAL work has, from AniList — a different question from
-  // sourceChapterCount, which is what THIS SOURCE has. The gap here means the
+  // sourceHighestChapter, which is what THIS SOURCE has. The gap here means the
   // source has not translated everything yet (the Uma Musume case), and it is the
   // only way to answer that for WeebCentral, which publishes no total of its own.
   //

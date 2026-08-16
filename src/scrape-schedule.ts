@@ -39,8 +39,8 @@ export interface ScheduleInput {
   latestChapterPublishedAt: Date | null;
   /** When we last tried, successful or not. */
   lastAttemptAt: Date | null;
-  /** The source's own chapter total, when it publishes one. */
-  sourceChapterCount: number | null;
+  /** The highest chapter number the source lists, when it states one. */
+  sourceHighestChapter: number | null;
   latestChapter: string;
 }
 
@@ -54,16 +54,22 @@ export const quietDays = (latestChapterPublishedAt: Date | null, now: Date): num
  * each means our picture of it is either absent or known to be stale:
  *   - never attempted
  *   - no known publish date, so silence cannot be measured yet
- *   - the source has chapters we have never announced
+ *   - the source lists a chapter newer than the one we can read
  *
- * The last one is what stops a back-off from stranding a series: the moment a
- * scrape sees something new, the publish date moves and the interval collapses
- * back to 30 minutes on its own.
+ * The last one is what stops a back-off from stranding a series, and it only earns
+ * its keep now that both sides of the comparison are chapter numbers. While it was
+ * subtracting a chapter number from a count of chapters it fired on 11 series
+ * permanently — 10 of which had nothing waiting at all — so the rows most likely to
+ * be finished were also the ones that never backed off.
+ *
+ * A gap that is real closes by itself: the gated chapter unlocks, the next pass
+ * announces it, and the publish date moving collapses the interval back to 30
+ * minutes with nothing needing to reset it.
  */
 export const isDueForScrape = (input: ScheduleInput, now: Date): boolean => {
   if (!input.lastAttemptAt) return true;
 
-  if (chaptersBehind(input.sourceChapterCount, input.latestChapter) !== null) return true;
+  if (chaptersBehind(input.sourceHighestChapter, input.latestChapter) !== null) return true;
 
   const quiet = quietDays(input.latestChapterPublishedAt, now);
   if (quiet === null) return true;

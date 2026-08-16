@@ -16,7 +16,7 @@ const TRIAGE = [
   { key: "failing", label: "Failing", match: (s: SeriesDto) => s.consecutiveFailures > 0 },
   { key: "completed", label: "Looks finished", match: (s: SeriesDto) => s.looksCompleted },
   { key: "dormant", label: "Dormant", match: (s: SeriesDto) => s.dormant },
-  { key: "behind", label: "Behind upstream", match: (s: SeriesDto) => s.chaptersBehind !== null },
+  { key: "behind", label: "Gated upstream", match: (s: SeriesDto) => s.chaptersBehind !== null },
 ] as const;
 
 type TriageKey = (typeof TRIAGE)[number]["key"];

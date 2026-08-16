@@ -79,26 +79,46 @@ export const readableChapters = (chapters: AsuraChapter[], now: number): AsuraCh
   chapters.filter((c) => !c.is_locked && (!c.early_access_until || Date.parse(c.early_access_until) <= now));
 
 /**
- * A second island on the same page carries the series' own metadata — status,
- * total chapter count, author, artist, genres, description, rating. The scraper
- * read only the chapter list and discarded all of it, which meant paying for a
- * request and throwing away most of what it returned.
+ * The newest chapter that EXISTS, gated or not.
  *
- * `chapterCount` is the valuable one: the gap against what we have announced is
- * direct evidence that chapters exist which we have not seen.
+ * Read off the chapter list rather than the page's own `chapterCount`, which is a
+ * tally of entries — measured across all 29 stored series, `chapterCount` equals
+ * `chapters.length` exactly. Comparing that tally against a chapter number made
+ * every series numbered from chapter 0, or carrying a decimal chapter, look
+ * permanently behind: Eternally Regressing Knight reported "3.3 chapters behind"
+ * on 116 entries running 0…112 plus 112.5/112.6/112.7, with nothing locked and
+ * nothing missing.
+ *
+ * The difference against the newest READABLE chapter is the real signal, and it
+ * means one specific thing: content is sitting behind early access.
  */
-export const parseDescription = (props: string): SeriesMetadata => {
+export const highestChapterNumber = (chapters: AsuraChapter[]): number | undefined =>
+  chapters.length ? chapters.reduce((max, c) => (c.number > max ? c.number : max), -Infinity) : undefined;
+
+/**
+ * A second island on the same page carries the series' own metadata — status,
+ * author, artist, genres, description, rating. The scraper read only the chapter
+ * list and discarded all of it, which meant paying for a request and throwing away
+ * most of what it returned.
+ */
+export const parseDescription = (props: string): Pick<SeriesMetadata, "status" | "author"> => {
   const parsed = unwrapAstro(JSON.parse(decodeEntities(props))) as Record<string, unknown>;
   const str = (key: string): string | undefined => {
     const value = parsed[key];
     return typeof value === "string" && value.trim() ? value.trim() : undefined;
   };
-  const count = parsed.chapterCount;
-  return {
-    status: str("status"),
-    chapterCount: typeof count === "number" && Number.isFinite(count) ? count : undefined,
-    author: str("author"),
-  };
+  return { status: str("status"), author: str("author") };
+};
+
+/** Never allowed to fail the scrape, and absent fields leave the stored values alone. */
+const describe = (url: string, props: string | undefined): Pick<SeriesMetadata, "status" | "author"> => {
+  if (!props) return { status: undefined, author: undefined };
+  try {
+    return parseDescription(props);
+  } catch (error) {
+    console.error(`[asura] could not parse series metadata for ${url}:`, error);
+    return { status: undefined, author: undefined };
+  }
 };
 
 const scraper: Scraper = {
@@ -159,13 +179,14 @@ const scraper: Scraper = {
       return failure(url, SOURCE, "parse", `page loaded but ${!title ? "title" : "chapter list"} was missing`);
     }
 
-    let readable: AsuraChapter[];
+    let chapters: AsuraChapter[];
     try {
-      readable = readableChapters(parseChapters(props), Date.now());
+      chapters = parseChapters(props);
     } catch (error) {
       return failure(url, SOURCE, "parse", `chapter props did not parse: ${String(error).slice(0, 200)}`);
     }
 
+    const readable = readableChapters(chapters, Date.now());
     if (readable.length === 0) {
       return failure(url, SOURCE, "empty", "no readable chapters (all locked or in early access)");
     }
@@ -174,15 +195,13 @@ const scraper: Scraper = {
     const publishedAt = latest.published_at ? new Date(latest.published_at) : undefined;
 
     // Metadata must never be able to fail the scrape — a chapter update is the job,
-    // and the status is a nice-to-have on top of it.
-    let metadata: SeriesMetadata | undefined;
-    if (descriptionProps) {
-      try {
-        metadata = parseDescription(descriptionProps);
-      } catch (error) {
-        console.error(`[asura] could not parse series metadata for ${url}:`, error);
-      }
-    }
+    // and the status is a nice-to-have on top of it. The highest chapter number is
+    // derived from the list we already parsed, so it survives the description island
+    // going missing or changing shape.
+    const metadata: SeriesMetadata = {
+      highestChapterNumber: highestChapterNumber(chapters),
+      ...describe(url, descriptionProps),
+    };
 
     return success({
       title,

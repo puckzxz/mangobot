@@ -43,12 +43,16 @@ const fetchCoverAndMeta = async (id: string): Promise<{ imageUrl?: string; metad
     };
     const relationships = body.data?.relationships ?? [];
     const fileName = relationships.find((r) => r.type === "cover_art")?.attributes?.fileName;
-    const lastChapter = Number(body.data?.attributes?.lastChapter);
     return {
       imageUrl: fileName ? `https://uploads.mangadex.org/covers/${id}/${fileName}` : undefined,
       metadata: {
         status: body.data?.attributes?.status,
-        chapterCount: Number.isFinite(lastChapter) && lastChapter > 0 ? lastChapter : undefined,
+        // `attributes.lastChapter` is the final chapter of the WORK, not the newest
+        // one MangaDex can serve us in English — so it answers the AniList question
+        // (how much is untranslated), not this one (what is sitting behind a gate).
+        // Feeding it in here would mark any completed manga whose translation lags
+        // as permanently "behind", which is the bug this field was renamed to fix.
+        highestChapterNumber: undefined,
         author: relationships.find((r) => r.type === "author")?.attributes?.name,
       },
     };

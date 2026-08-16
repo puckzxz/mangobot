@@ -143,8 +143,10 @@ export const parseSeriesPage = (html: string): SeriesMetadata => {
 
   return {
     status,
-    // WeebCentral publishes no total, so Gap A is unavailable for this source.
-    chapterCount: undefined,
+    // Neither the feed nor the series page states a highest chapter, so the
+    // upstream gap is unanswerable here. AniList covers the other question —
+    // how much of the original work is untranslated.
+    highestChapterNumber: undefined,
     author: field("Author"),
   };
 };

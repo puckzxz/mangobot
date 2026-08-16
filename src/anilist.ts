@@ -1,12 +1,13 @@
 /**
  * Looks up how many chapters the ORIGINAL work has, which no scraper can know.
  *
- * This is a different question from the one `sourceChapterCount` answers, and the
+ * This is a different question from the one `sourceHighestChapter` answers, and the
  * two must not be conflated:
  *
- *   sourceChapterCount  what THIS SOURCE has → a gap means we are lagging behind it
- *   anilistChapters     what the WORK has    → a gap means the source has not
- *                                              translated everything yet
+ *   sourceHighestChapter  the newest chapter THIS SOURCE lists → a gap means early
+ *                                                                access is holding it
+ *   anilistChapters       what the WORK has                    → a gap means the source
+ *                                                                has not translated it all
  *
  * The second is the Uma Musume case: the Japanese run finished while the English
  * translation sat at roughly chapter 50 of 180. Without it, a completed-and-quiet

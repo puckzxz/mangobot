@@ -17,7 +17,7 @@ const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null
     {
       upstreamStatus: entry.series.upstreamStatus,
       latestChapterPublishedAt: entry.series.latestChapterPublishedAt,
-      sourceChapterCount: entry.series.sourceChapterCount,
+      sourceHighestChapter: entry.series.sourceHighestChapter,
       anilistChapters: entry.series.anilistChapters,
       latestChapter: entry.series.latestChapter,
       consecutiveFailures: entry.series.consecutiveFailures,
@@ -45,6 +45,7 @@ const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null
     upstreamStatusRaw: entry.series.upstreamStatus,
     dormant: verdict.dormant,
     chaptersBehind: verdict.behind,
+    sourceHighestChapter: entry.series.sourceHighestChapter,
     untranslated: verdict.untranslated,
     anilistTitle: entry.series.anilistTitle,
     looksCompleted: verdict.looksCompleted,

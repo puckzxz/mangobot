@@ -44,8 +44,14 @@ export interface SeriesDto {
   upstreamStatusRaw: string | null;
   /** No new chapter upstream for 120+ days, and the scrape is healthy. */
   dormant: boolean;
-  /** Chapters the source has that we have never announced. Null when not behind. */
+  /**
+   * How far the source's newest chapter is ahead of the newest we can read. Both
+   * are chapter numbers; on AsuraScans, the only source that states one, a gap
+   * means early access is holding the chapter back. Null when not behind.
+   */
   chaptersBehind: number | null;
+  /** The highest chapter number the source lists, gated included. Null when unstated. */
+  sourceHighestChapter: number | null;
   /** Chapters the original work has that this source never translated. */
   untranslated: number | null;
   /** What AniList matched this title to, so a wrong match is visible. */

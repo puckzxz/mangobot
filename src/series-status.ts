@@ -64,28 +64,38 @@ export const isDormant = (latestChapterPublishedAt: Date | null | undefined, now
 };
 
 /**
- * How many chapters the source has that we have never announced.
+ * How far the source's newest chapter is ahead of the newest one we can read.
  *
- * Free from AsuraScans, which publishes `chapterCount` on the page the scraper
- * already downloads. A positive number is the strongest evidence a series is still
- * alive, whatever its status says — it already caught Eternally Regressing Knight
- * sitting at 112.7 against an upstream count of 116.
+ * Both sides are chapter NUMBERS. That is the whole correctness condition here, and
+ * it was violated for a release: the source side held Asura's `chapterCount`, a
+ * tally of chapter entries, so any series numbered from chapter 0 or carrying a
+ * decimal chapter subtracted a count from an ordinal and reported a gap that could
+ * never close. Of the 11 rows it flagged, 10 had nothing missing and nothing
+ * locked — Eternally Regressing Knight's "3.3 behind" was chapter 0 plus 112.5,
+ * 112.6 and 112.7.
  *
- * Null when the source publishes no count, or when the count is not ahead of us.
+ * Available from AsuraScans only, off the chapter list the scraper already reads.
+ * Since both numbers come out of the same response, a positive gap means one thing:
+ * chapters exist that early access is holding back.
+ *
+ * Null when the source states no highest chapter, or when it is not ahead of us.
  */
-export const chaptersBehind = (sourceChapterCount: number | null | undefined, latestChapter: string): number | null => {
-  if (!sourceChapterCount) return null;
+export const chaptersBehind = (
+  sourceHighestChapter: number | null | undefined,
+  latestChapter: string
+): number | null => {
+  if (!sourceHighestChapter) return null;
   const ours = parseFloat(latestChapter);
   if (!Number.isFinite(ours)) return null;
-  const behind = sourceChapterCount - ours;
+  const behind = sourceHighestChapter - ours;
   return behind > 0 ? Math.round(behind * 10) / 10 : null;
 };
 
 export interface CompletionInput {
   upstreamStatus: string | null | undefined;
   latestChapterPublishedAt: Date | null | undefined;
-  /** What THIS SOURCE has. A gap means we are lagging behind it. */
-  sourceChapterCount: number | null | undefined;
+  /** The highest chapter number THIS SOURCE lists. A gap means content is gated. */
+  sourceHighestChapter: number | null | undefined;
   /** What the ORIGINAL WORK has. A gap means the source has not translated it all. */
   anilistChapters: number | null | undefined;
   latestChapter: string;
@@ -116,7 +126,7 @@ export interface CompletionVerdict {
 
 export const assessCompletion = (input: CompletionInput, now: Date): CompletionVerdict => {
   const state = normaliseUpstreamStatus(input.upstreamStatus);
-  const behind = chaptersBehind(input.sourceChapterCount, input.latestChapter);
+  const behind = chaptersBehind(input.sourceHighestChapter, input.latestChapter);
 
   // Silence is only evidence while reads are succeeding. A scraper that broke 200
   // days ago produces exactly the same silence as a finished series, and belongs in
@@ -139,6 +149,6 @@ export const assessCompletion = (input: CompletionInput, now: Date): CompletionV
     behind,
     untranslated,
     looksCompleted,
-    chapterTotalKnown: !!input.sourceChapterCount || !!input.anilistChapters,
+    chapterTotalKnown: !!input.sourceHighestChapter || !!input.anilistChapters,
   };
 };

@@ -102,12 +102,13 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
           {series.author && ` · ${series.author}`}
         </div>
 
-        {/* Gap A: the source has chapters we have never announced. Strong evidence a
-            series is alive whatever its status says, so it outranks the label. */}
+        {/* The source lists a higher chapter number than the newest we can read.
+            Both sides are chapter numbers, so on AsuraScans — the only source that
+            states this — it means exactly one thing: early access is holding it. */}
         {series.chaptersBehind !== null && (
           <div className="card-note">
-            {series.chaptersBehind} more chapter(s) exist upstream — often early-access, which AsuraScans time-gates and
-            the scraper deliberately skips until it unlocks
+            Chapter {series.sourceHighestChapter} exists upstream, {series.chaptersBehind} ahead of ours — early access,
+            which the scraper skips until it unlocks
           </div>
         )}
 

@@ -26,8 +26,16 @@ export interface ScraperResult {
 export interface SeriesMetadata {
   /** Raw, unnormalised — "Complete", "ongoing", "hiatus". See src/series-status.ts. */
   status: string | undefined;
-  /** How many chapters the source claims to have. The gap against ours is Gap A. */
-  chapterCount: number | undefined;
+  /**
+   * The highest chapter NUMBER the source lists, gated chapters included — an
+   * ordinal, comparable directly against `latestChapter`.
+   *
+   * It must never be a count of chapters. That is what it used to be for Asura,
+   * whose page publishes `chapterCount` (literally `chapters.length`), and the
+   * subtraction against a chapter number reported a permanent phantom gap for
+   * every series numbered from chapter 0 or carrying a decimal chapter.
+   */
+  highestChapterNumber: number | undefined;
   author: string | undefined;
 }
 

@@ -98,7 +98,9 @@ export const recordSuccess = async (
         ? {
             upstreamStatusAt: now,
             ...(update.metadata.status !== undefined ? { upstreamStatus: update.metadata.status } : {}),
-            ...(update.metadata.chapterCount !== undefined ? { sourceChapterCount: update.metadata.chapterCount } : {}),
+            ...(update.metadata.highestChapterNumber !== undefined
+              ? { sourceHighestChapter: update.metadata.highestChapterNumber }
+              : {}),
             ...(update.metadata.author !== undefined ? { author: update.metadata.author } : {}),
           }
         : {}),

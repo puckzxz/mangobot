@@ -48,7 +48,7 @@ describe("isDueForScrape", () => {
   const base = {
     latestChapterPublishedAt: daysAgo(1),
     lastAttemptAt: minutesAgo(31),
-    sourceChapterCount: null,
+    sourceHighestChapter: null,
     latestChapter: "100",
   };
 
@@ -74,16 +74,17 @@ describe("isDueForScrape", () => {
   });
 
   /**
-   * The stranding guard. A dormant series with chapters waiting on the source must
-   * not sit in the slow tier — this is the Eternally Regressing Knight shape
-   * (112.7 announced against an upstream 116).
+   * The stranding guard. A dormant series whose source lists a newer chapter than
+   * we can read must not sit in the slow tier — the Dark Mage shape, where chapter
+   * 101 exists behind early access while we are on 100. It unlocks, the next pass
+   * announces it, and the gap closes on its own.
    */
-  test("chapters waiting upstream force a check regardless of silence", () => {
+  test("a chapter waiting upstream forces a check regardless of silence", () => {
     const stranded = {
       latestChapterPublishedAt: daysAgo(700),
       lastAttemptAt: minutesAgo(1),
-      sourceChapterCount: 116,
-      latestChapter: "112.7",
+      sourceHighestChapter: 101,
+      latestChapter: "100",
     };
     expect(isDueForScrape(stranded, NOW)).toBe(true);
   });
@@ -92,10 +93,27 @@ describe("isDueForScrape", () => {
     const caughtUp = {
       latestChapterPublishedAt: daysAgo(700),
       lastAttemptAt: minutesAgo(1),
-      sourceChapterCount: 116,
+      sourceHighestChapter: 116,
       latestChapter: "116",
     };
     expect(isDueForScrape(caughtUp, NOW)).toBe(false);
+  });
+
+  /**
+   * The regression that made the back-off leak. Eternally Regressing Knight has 116
+   * chapter entries and a newest chapter of 112.7; while this field carried the
+   * count, the guard fired on every pass forever and the series never backed off —
+   * as it did for 10 of the 11 rows it flagged, none of which had anything waiting.
+   * With a chapter number on both sides, silence is allowed to mean silence.
+   */
+  test("a decimal-numbered series that is caught up backs off like any other", () => {
+    const artifact = {
+      latestChapterPublishedAt: daysAgo(700),
+      lastAttemptAt: minutesAgo(1),
+      sourceHighestChapter: 112.7,
+      latestChapter: "112.7",
+    };
+    expect(isDueForScrape(artifact, NOW)).toBe(false);
   });
 
   /**

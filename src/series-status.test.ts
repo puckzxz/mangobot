@@ -44,20 +44,32 @@ describe("isDormant", () => {
 });
 
 describe("chaptersBehind", () => {
-  /** The real case: stored 112.7 against an upstream count of 116. */
-  test("reports the gap when the source has more than we announced", () => {
-    expect(chaptersBehind(116, "112.7")).toBe(3.3);
+  /** The Dark Mage case: chapter 101 exists, sits in early access, we read 100. */
+  test("reports the gap when the source lists a newer chapter than we can read", () => {
+    expect(chaptersBehind(101, "100")).toBe(1);
+    expect(chaptersBehind(112.7, "106.5")).toBe(6.2);
+  });
+
+  /**
+   * The regression this field was renamed to prevent. Eternally Regressing Knight
+   * has 116 chapter entries — 0 through 112, plus 112.5/112.6/112.7 — and its
+   * newest readable chapter IS 112.7. Nothing is locked and nothing is missing.
+   * Passing the count of 116 here reported "3.3 behind" forever; passing the
+   * highest chapter number reports what is true.
+   */
+  test("a chapter count is not a chapter number, and must not be passed as one", () => {
+    expect(chaptersBehind(112.7, "112.7")).toBeNull();
   });
 
   test.each([
     [152, "152"],
     [120, "120"],
-    [100, "120"], // ours ahead — decimal chapters can do this
-  ])("count %p vs ours %s is not behind", (count, ours) => {
-    expect(chaptersBehind(count as number, ours as string)).toBeNull();
+    [100, "120"], // ours ahead — a source can drop a chapter without renumbering
+  ])("highest %p vs ours %s is not behind", (highest, ours) => {
+    expect(chaptersBehind(highest as number, ours as string)).toBeNull();
   });
 
-  test("a source that publishes no count yields null, not zero", () => {
+  test("a source that states no highest chapter yields null, not zero", () => {
     expect(chaptersBehind(undefined, "50")).toBeNull();
     expect(chaptersBehind(null, "50")).toBeNull();
   });
@@ -71,7 +83,7 @@ describe("assessCompletion", () => {
   const base = {
     upstreamStatus: "Complete",
     latestChapterPublishedAt: daysAgo(400),
-    sourceChapterCount: null,
+    sourceHighestChapter: null,
     anilistChapters: null,
     latestChapter: "220",
     consecutiveFailures: 0,
@@ -83,7 +95,7 @@ describe("assessCompletion", () => {
 
   /** The source itself still has chapters we never announced. */
   test("does NOT look finished while chapters remain on the source", () => {
-    const verdict = assessCompletion({ ...base, sourceChapterCount: 224, latestChapter: "220" }, NOW);
+    const verdict = assessCompletion({ ...base, sourceHighestChapter: 224, latestChapter: "220" }, NOW);
     expect(verdict.behind).toBe(4);
     expect(verdict.looksCompleted).toBe(false);
   });
@@ -102,7 +114,7 @@ describe("assessCompletion", () => {
   });
 
   test("looks finished only once BOTH gaps are closed", () => {
-    const verdict = assessCompletion({ ...base, sourceChapterCount: 220, anilistChapters: 220 }, NOW);
+    const verdict = assessCompletion({ ...base, sourceHighestChapter: 220, anilistChapters: 220 }, NOW);
     expect(verdict.behind).toBeNull();
     expect(verdict.untranslated).toBeNull();
     expect(verdict.looksCompleted).toBe(true);
