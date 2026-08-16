@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ALERT_THRESHOLDS, crossedAlertThreshold } from "./scrape-recorder";
+import { ALERT_THRESHOLDS, crossedAlertThreshold } from "./scrape-health";
 import type { ScrapeFailureReason } from "./types/scraper";
 
 const ALL_REASONS: ScrapeFailureReason[] = [

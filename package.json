@@ -7,7 +7,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch src/index.ts",
-    "test": "bun test",
+    "test": "DATABASE_URL= bun test",
     "typecheck": "tsc --project ./tsconfig.json",
     "generate": "prisma generate",
     "migrate": "prisma migrate deploy",

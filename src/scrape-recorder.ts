@@ -1,5 +1,6 @@
 import prisma from "./prisma";
 import type { ScrapeFailureReason, ScraperResult } from "./types/scraper";
+import { crossedAlertThreshold } from "./scrape-health";
 
 /**
  * The only writer of the scrape-health columns.
@@ -14,31 +15,6 @@ import type { ScrapeFailureReason, ScraperResult } from "./types/scraper";
  * health axis and the editorial axis do not share a cell, so a broken scraper is
  * structurally incapable of being recorded as a finished series.
  */
-
-/**
- * How many consecutive failures before a reason is worth a human's attention.
- *
- * `derive-url` is permanent — a URL that cannot be parsed this pass cannot be
- * parsed next pass either, so there is nothing to wait for. `empty` is the
- * opposite: Asura reports it whenever every new chapter is still in early access,
- * which resolves on its own within a day, so it needs a full day of passes before
- * it means anything.
- */
-export const ALERT_THRESHOLDS: Record<ScrapeFailureReason, number> = {
-  "derive-url": 1,
-  blocked: 3,
-  parse: 3,
-  http: 3,
-  timeout: 3,
-  network: 3,
-  internal: 3,
-  "not-attempted": 3,
-  empty: 48,
-};
-
-/** True only on the pass that crosses the line, so an alert never repeats. */
-export const crossedAlertThreshold = (reason: ScrapeFailureReason, consecutiveFailures: number): boolean =>
-  consecutiveFailures === ALERT_THRESHOLDS[reason];
 
 export interface RecordedFailure {
   reason: ScrapeFailureReason;

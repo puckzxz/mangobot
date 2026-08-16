@@ -35,6 +35,8 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run format:check
       # Pure units only — no database, no network. See src/**/*.test.ts.
+      # The script blanks DATABASE_URL because `bun test` auto-loads the repo .env,
+      # so a test that reaches src/prisma.ts passes locally and only fails here.
       - run: pnpm run test
 
   # The Dockerfile is the only thing that proves the deploy still assembles, and it
