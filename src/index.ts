@@ -8,10 +8,6 @@ import { recordFailure, recordSuccess } from "./scrape-recorder";
 import { buildAnnouncement } from "./announcement";
 import { refreshAnilistTotals } from "./anilist-refresh";
 import { isDueForScrape } from "./scrape-schedule";
-import { emojiNumbers } from "./emoji";
-import { commandsByName } from "./commands";
-import { parseCatalogLine } from "./catalog-line";
-import { toggleSubscription } from "./subscription-service";
 import { handleInteraction, registerSlashCommands, slashCommands } from "./slash";
 import { startWebServer } from "./web/server";
 
@@ -43,10 +39,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     }
   }
 
-  console.log(
-    `Loaded ${commandsByName.size} prefix and ${slashCommands.length} slash commands,` +
-      ` watching ${readyClient.guilds.cache.size} guild(s)`
-  );
+  console.log(`Loaded ${slashCommands.length} slash commands, watching ${readyClient.guilds.cache.size} guild(s)`);
 
   // Before the first scrape: a pass takes over a minute, and commands should be
   // usable while it runs. Registration is idempotent, so doing it every boot keeps
@@ -73,90 +66,6 @@ client.on(Events.GuildCreate, async (guild) => {
 });
 
 client.on(Events.InteractionCreate, handleInteraction);
-
-client.on(Events.MessageCreate, async (msg) => {
-  try {
-    if (!msg.guild || !msg.content.startsWith("!")) {
-      return;
-    }
-
-    const args = msg.content.slice(1).trim().split(/ +/);
-    const commandName = args.shift()?.toLowerCase();
-    if (!commandName) {
-      return;
-    }
-
-    const command = commandsByName.get(commandName);
-    if (!command) {
-      return;
-    }
-
-    if (command.usableBy && !command.usableBy.includes(msg.author.id)) {
-      await msg.reply("You don't have permission to use that command.");
-      return;
-    }
-
-    await command.run({ client, msg, prisma }, args);
-  } catch (error) {
-    console.error(`Command failed:`, error);
-    await msg.channel
-      .send("There was an error trying to execute that command!")
-      .catch((sendError) => console.error("Could not report the command failure:", sendError));
-  }
-});
-
-client.on(Events.MessageReactionAdd, async (reaction, user) => {
-  try {
-    if (user.bot) {
-      return;
-    }
-
-    if (reaction.partial) {
-      await reaction.fetch();
-    }
-    if (reaction.message.partial) {
-      await reaction.message.fetch();
-    }
-
-    const guildId = reaction.message.guild?.id;
-    if (!guildId) {
-      return;
-    }
-
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild || reaction.message.channel.id !== guild.catalogChannelId) {
-      return;
-    }
-
-    const emoji = reaction.emoji.name;
-    const emojiIndex = emoji ? emojiNumbers.indexOf(emoji) : -1;
-    if (!emoji || emojiIndex === -1 || !reaction.message.content) {
-      return;
-    }
-
-    const line = reaction.message.content.split("\n")[emojiIndex];
-    const seriesName = line ? parseCatalogLine(emoji, line) : null;
-    if (!seriesName) {
-      return;
-    }
-
-    const serie = await prisma.series.findUnique({ where: { name: seriesName } });
-    if (!serie) {
-      console.error(`Catalog reaction referenced an unknown series: ${JSON.stringify(seriesName)}`);
-      return;
-    }
-
-    // Shared with /subscribe and /unsubscribe, so there is one writer of these rows
-    // for as long as both mechanisms exist.
-    await toggleSubscription({ guildId: guild.id, seriesId: serie.id, userId: user.id });
-
-    // Needs Manage Messages. Uncaught, this let any member crash the bot on demand
-    // simply by reacting in a channel where the permission was missing.
-    await reaction.users.remove(user.id).catch((error) => console.error("Could not clear the reaction:", error));
-  } catch (error) {
-    console.error("Reaction handler failed:", error);
-  }
-});
 
 /**
  * A pass takes over two minutes with pacing, and a stalled upstream could make it

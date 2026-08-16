@@ -2,9 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { tryToDetermineSeriesSource, SUPPORTED_HOSTNAMES } from "./try-to-determine-series-source";
 import extractMangadexId from "./extract-mangadex-id";
 import { decodeEntities } from "./html-entities";
-import { formatCatalogLine, parseCatalogLine } from "../catalog-line";
 import { SeriesSource } from "../db";
-import { emojiNumbers } from "../emoji";
 
 describe("tryToDetermineSeriesSource", () => {
   test.each([
@@ -73,43 +71,5 @@ describe("decodeEntities", () => {
   /** &amp; is decoded last so an escaped entity is not decoded twice. */
   test("does not double-decode", () => {
     expect(decodeEntities("&amp;quot;")).toBe("&quot;");
-  });
-});
-
-describe("catalog line round-trip", () => {
-  const entry = (name: string) => ({ name, source: "WeebCentral", url: "https://weebcentral.com/series/01ABC" });
-
-  test.each([
-    ["One-Punch Man"],
-    ["Ōoku"], // stripping non-ASCII mangled this to "oku", making it unsubscribable
-    ["'Tis Time for Torture, Princess"],
-    ["Fate/Type Redline"],
-    ["MAD (OTORI Yusuke)"],
-  ])("%s survives format -> parse", (name) => {
-    const line = formatCatalogLine(emojiNumbers[0]!, entry(name as string));
-    expect(parseCatalogLine(emojiNumbers[0]!, line)).toBe(name as string);
-  });
-
-  /** 🔟 is above U+FFFF, so a naive slice(2) ate its surrogate pair. */
-  test("works for the tenth entry, whose emoji is outside the BMP", () => {
-    const tenth = emojiNumbers[9]!;
-    const line = formatCatalogLine(tenth, entry("Tenth Series"));
-    expect(parseCatalogLine(tenth, line)).toBe("Tenth Series");
-  });
-
-  /** lastIndexOf, because a title is free to contain the separator itself. */
-  test("a title containing the separator round-trips", () => {
-    const name = "Before -> After";
-    const line = formatCatalogLine(emojiNumbers[0]!, entry(name));
-    expect(parseCatalogLine(emojiNumbers[0]!, line)).toBe(name);
-  });
-
-  test("a line reacted with the wrong emoji does not resolve", () => {
-    const line = formatCatalogLine(emojiNumbers[0]!, entry("One-Punch Man"));
-    expect(parseCatalogLine(emojiNumbers[1]!, line)).toBeNull();
-  });
-
-  test("a line that is not a catalog entry does not resolve", () => {
-    expect(parseCatalogLine(emojiNumbers[0]!, `${emojiNumbers[0]} just some text`)).toBeNull();
   });
 });

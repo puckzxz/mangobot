@@ -3,12 +3,15 @@ import { Prisma, Series } from "./db";
 import fetchManga from "./fetch-manga";
 import { tryToDetermineSeriesSource } from "./utils/try-to-determine-series-source";
 import extractMangadexId from "./utils/extract-mangadex-id";
-import { updateCatalog } from "./update-catalog";
 
 /**
- * The one implementation of add/remove/list, shared by the Discord commands and
- * the web API. Both callers translate these results into their own replies; the
- * catalog refresh is owned here so no caller can forget it.
+ * The one implementation of add/remove/list, shared by the slash commands and the
+ * web API. Both callers translate these results into their own replies.
+ *
+ * Adding and removing used to rebuild the reaction catalog from here, which meant
+ * every add paid for deleting up to a hundred Discord messages and re-adding one
+ * reaction per series against a rate limit. `/subscribe` reads the catalog from
+ * the database instead, so there is nothing left to keep in sync.
  */
 
 export type AddSeriesResult =
@@ -25,9 +28,6 @@ export type GuildSeriesEntry = {
   addedAt: Date;
   subscriberIds: string[];
 };
-
-const refreshCatalog = (guildId: string) =>
-  updateCatalog(guildId).catch((error) => console.error("Failed to update the catalog:", error));
 
 export const addSeriesToGuild = async (guildId: string, url: string): Promise<AddSeriesResult> => {
   const source = tryToDetermineSeriesSource(url);
@@ -82,9 +82,6 @@ export const addSeriesToGuild = async (guildId: string, url: string): Promise<Ad
   const existing = await prisma.guildsSeries.findUnique({ where: { guildId_seriesId: key } });
   const link = existing ?? (await prisma.guildsSeries.create({ data: key }));
 
-  // Even a re-add can change the catalog: the upsert above may have renamed the series.
-  void refreshCatalog(guildId);
-
   return { ok: true, series, addedAt: link.createdAt, alreadyInCatalog: existing !== null };
 };
 
@@ -126,15 +123,14 @@ export const removeSeriesFromGuild = async (
     return { ok: false, reason: "not-in-catalog" };
   }
 
-  void refreshCatalog(guildId);
-
   return { ok: true, seriesName: series.name, seriesRowDeleted: removed.seriesRowDeleted };
 };
 
 export const listGuildSeries = async (guildId: string): Promise<GuildSeriesEntry[]> => {
   const rows = await prisma.guildsSeries.findMany({
     where: { guildId },
-    // Catalog order — the same ordering update-catalog.ts renders.
+    // Oldest first, which is the order the panel and the /subscribe suggestions
+    // both present — stable, and independent of titles that upstream can rename.
     orderBy: { createdAt: "asc" },
     include: {
       series: {

@@ -39,6 +39,21 @@ describe("buildChoices", () => {
     expect(buildChoices(CATALOG, "  MOUNT hua  ")).toHaveLength(1);
   });
 
+  /**
+   * Real titles are not ASCII and not tidy. The reaction catalog this replaced
+   * reverse-engineered the name back out of a rendered line by stripping every
+   * codepoint above U+007F, which turned "Ōoku" into "oku" and left that series
+   * permanently unsubscribable. Nothing here re-derives a name — the choice value
+   * is the series id — but these titles are still the ones that break things.
+   */
+  test.each([["Ōoku"], ["'Tis Time for Torture, Princess"], ["Fate/Type Redline"], ["MAD (OOTORI Yuusuke)"]])(
+    "%s survives search and labelling intact",
+    (name) => {
+      const [choice] = buildChoices([entry(name as string, false, "id-1")], (name as string).slice(0, 4));
+      expect(choice).toEqual({ name: name as string, value: "id-1" });
+    }
+  );
+
   /** The value is the series id; only the label is decorated. */
   test("already-subscribed entries are ticked without changing their value", () => {
     const [choice] = buildChoices([entry("Vinland Saga", true, "abc-123")], "vinland");
