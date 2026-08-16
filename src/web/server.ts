@@ -5,6 +5,7 @@ import { addSeriesToGuild, listGuildSeries, removeSeriesFromGuild, GuildSeriesEn
 import { SUPPORTED_HOSTNAMES } from "../utils/try-to-determine-series-source";
 import { AddSeriesRequest, AddSeriesResponse, ApiError, ListSeriesResponse, SeriesDto } from "./api-types";
 import { assessCompletion } from "../series-status";
+import { checkHealth } from "./health";
 
 /**
  * The web UI for managing the catalog. Deliberately unauthenticated — it is only
@@ -108,7 +109,12 @@ export const startWebServer = () => {
 
     routes: {
       "/": page,
-      "/healthz": Response.json({ ok: true }),
+      // An async handler, not a static Response: Bun builds a static route's body
+      // once at startup, so the old one could never observe anything at all.
+      "/healthz": async () => {
+        const report = await checkHealth();
+        return Response.json(report, { status: report.ok ? 200 : 503 });
+      },
 
       "/api/series": {
         GET: async () => {

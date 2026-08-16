@@ -11,6 +11,23 @@ services:
     env_file:
       - .env
     restart: always
+    # A pass takes ~80s and the shutdown handler waits for it to finish, so that a
+    # SIGKILL cannot land between a successful send and the row update and
+    # re-announce the chapter on restart. Docker's default grace is 10s.
+    stop_grace_period: 180s
+    # Observability only: Compose outside Swarm does not restart an unhealthy
+    # container, it just reports it.
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r = await fetch('http://127.0.0.1:3000/healthz'); process.exit(r.ok ? 0 : 1)"]
+      interval: 60s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       db:
         condition: service_healthy

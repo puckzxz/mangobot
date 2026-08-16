@@ -37,4 +37,9 @@ ENV NODE_ENV=production
 # The web UI. Documentation only — publishing happens in docker-compose.yml.
 EXPOSE 3000
 
+# /healthz reports the database connection and the gateway, and answers 503 when
+# either is down. Bun is already here, so this needs no extra binary.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=40s --retries=3 \
+  CMD bun -e 'const r = await fetch(`http://127.0.0.1:${process.env.PORT || 3000}/healthz`); process.exit(r.ok ? 0 : 1)'
+
 CMD ["./start.sh"]

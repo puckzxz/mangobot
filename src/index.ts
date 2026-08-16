@@ -7,6 +7,7 @@ import type { ScraperResult } from "./types/scraper";
 import { recordFailure, recordSuccess } from "./scrape-recorder";
 import { buildAnnouncement } from "./announcement";
 import { refreshAnilistTotals } from "./anilist-refresh";
+import { isDueForScrape } from "./scrape-schedule";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
@@ -174,8 +175,16 @@ const runUpdateCheck = async () => {
   try {
     console.log(`Checking for updates at ${new Date().toISOString()}`);
 
-    const series = await prisma.series.findMany({ include: { subscription: true } });
+    const allSeries = await prisma.series.findMany({ include: { subscription: true } });
     const guildsSeries = await prisma.guildsSeries.findMany({ include: { guild: true } });
+
+    // Back off series that have not produced a chapter in months. This is keyed on
+    // observed silence, never on upstream status — a site calling something
+    // Complete is not evidence it has stopped, and slowing those down would delay
+    // the announcements this bot exists to make.
+    const now = new Date();
+    const series = allSeries.filter((s) => isDueForScrape({ ...s, latestChapter: s.latestChapter }, now));
+    const skipped = allSeries.length - series.length;
 
     // Status changes on the order of months, and WeebCentral charges a second
     // request for it. Refreshing the few stalest rows per pass covers the whole
@@ -236,7 +245,10 @@ const runUpdateCheck = async () => {
     await refreshAnilistTotals().catch((error) => console.error("AniList refresh failed:", error));
 
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
-    console.log(`Pass complete in ${seconds}s — checked=${series.length} ok=${succeeded} failed=${failures.length}`);
+    console.log(
+      `Pass complete in ${seconds}s — checked=${series.length} ok=${succeeded} failed=${failures.length}` +
+        ` skipped=${skipped} (backed off) of ${allSeries.length} total`
+    );
 
     // The names matter more than the count: "6 failed" is not actionable, and this
     // is the only place a human learns a series has stopped working at all.
