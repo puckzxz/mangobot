@@ -11,6 +11,8 @@ import { isDueForScrape } from "./scrape-schedule";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
+import { toggleSubscription } from "./subscription-service";
+import { handleInteraction, registerSlashCommands, slashCommands } from "./slash";
 import { startWebServer } from "./web/server";
 
 /**
@@ -41,7 +43,15 @@ client.once(Events.ClientReady, async (readyClient) => {
     }
   }
 
-  console.log(`Loaded ${commandsByName.size} commands, watching ${readyClient.guilds.cache.size} guild(s)`);
+  console.log(
+    `Loaded ${commandsByName.size} prefix and ${slashCommands.length} slash commands,` +
+      ` watching ${readyClient.guilds.cache.size} guild(s)`
+  );
+
+  // Before the first scrape: a pass takes over a minute, and commands should be
+  // usable while it runs. Registration is idempotent, so doing it every boot keeps
+  // Discord's copy in step with the code without any migration step.
+  await Promise.all(readyClient.guilds.cache.map(registerSlashCommands));
 
   // Only start scraping once the gateway is connected, otherwise the channel cache
   // is empty and the first pass posts nothing while still advancing latestChapter.
@@ -53,11 +63,16 @@ client.once(Events.ClientReady, async (readyClient) => {
 client.on(Events.GuildCreate, async (guild) => {
   try {
     await registerGuild(guild);
+    // Guild-scoped commands exist only where they were written, so a server joined
+    // after boot would otherwise have none until the next restart.
+    await registerSlashCommands(guild);
     console.log(`Joined guild ${guild.name}`);
   } catch (error) {
     console.error(`Failed to register guild ${guild.name}:`, error);
   }
 });
+
+client.on(Events.InteractionCreate, handleInteraction);
 
 client.on(Events.MessageCreate, async (msg) => {
   try {
@@ -131,14 +146,9 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
       return;
     }
 
-    const key = { guildId: guild.id, seriesId: serie.id, userId: user.id };
-    const existing = await prisma.subscription.findUnique({ where: { guildId_seriesId_userId: key } });
-
-    if (existing) {
-      await prisma.subscription.delete({ where: { guildId_seriesId_userId: key } });
-    } else {
-      await prisma.subscription.create({ data: key });
-    }
+    // Shared with /subscribe and /unsubscribe, so there is one writer of these rows
+    // for as long as both mechanisms exist.
+    await toggleSubscription({ guildId: guild.id, seriesId: serie.id, userId: user.id });
 
     // Needs Manage Messages. Uncaught, this let any member crash the bot on demand
     // simply by reacting in a channel where the permission was missing.
