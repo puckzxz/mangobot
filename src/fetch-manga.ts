@@ -20,7 +20,15 @@ const SCRAPERS = {
   [SeriesSource.MangaDex]: mangadex,
 } satisfies Record<SeriesSource, Scraper>;
 
-export type Item = { url: string; source: SeriesSource };
+export type Item = {
+  url: string;
+  source: SeriesSource;
+  /**
+   * Also fetch the slow-changing metadata. WeebCentral needs a second request for
+   * its status, so the caller budgets who gets one — see STATUS_REFRESH_PER_PASS.
+   */
+  refreshMetadata?: boolean;
+};
 
 /**
  * Fills in anything the scrapers did not account for.
@@ -46,7 +54,7 @@ const scrapeSource = async (scraper: Scraper, items: Item[]): Promise<ScrapeOutc
   for (const [index, item] of items.entries()) {
     if (index > 0) await Bun.sleep(scraper.requestGapMs);
     try {
-      outcomes.push(await scraper.scrapeOne(item.url));
+      outcomes.push(await scraper.scrapeOne(item.url, item.refreshMetadata));
     } catch (error) {
       // A scraper is not supposed to throw — it returns a typed failure. If one
       // does anyway, that is this series' problem and not the batch's.

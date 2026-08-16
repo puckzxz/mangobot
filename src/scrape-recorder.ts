@@ -91,6 +91,17 @@ export const recordSuccess = async (
       // date, and that is exactly the row whose dormancy we cannot otherwise judge.
       ...(update.publishedAt ? { latestChapterPublishedAt: update.publishedAt } : {}),
       deliveryFailedAt: deliveryFailed ? now : null,
+      // Absent metadata means "this pass did not refresh it", never "the source has
+      // none" — so the stored value is left alone rather than being wiped. Only the
+      // fields the source actually answered for are written.
+      ...(update.metadata
+        ? {
+            upstreamStatusAt: now,
+            ...(update.metadata.status !== undefined ? { upstreamStatus: update.metadata.status } : {}),
+            ...(update.metadata.chapterCount !== undefined ? { sourceChapterCount: update.metadata.chapterCount } : {}),
+            ...(update.metadata.author !== undefined ? { author: update.metadata.author } : {}),
+          }
+        : {}),
     },
   });
 };

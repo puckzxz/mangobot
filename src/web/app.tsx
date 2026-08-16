@@ -7,11 +7,26 @@ import { SeriesCard } from "./series-card";
 
 type Notice = { kind: "ok" | "error"; text: string };
 
+/**
+ * Triage filters, in the order an ops panel is actually read: what is broken, what
+ * needs a decision, what is waiting on us. Each renders only when it matches
+ * something, so a healthy catalog shows no chips at all.
+ */
+const TRIAGE = [
+  { key: "failing", label: "Failing", match: (s: SeriesDto) => s.consecutiveFailures > 0 },
+  { key: "completed", label: "Looks finished", match: (s: SeriesDto) => s.looksCompleted },
+  { key: "dormant", label: "Dormant", match: (s: SeriesDto) => s.dormant },
+  { key: "behind", label: "Behind upstream", match: (s: SeriesDto) => s.chaptersBehind !== null },
+] as const;
+
+type TriageKey = (typeof TRIAGE)[number]["key"];
+
 const App = () => {
   const [data, setData] = useState<ListSeriesResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<SeriesDto["source"] | null>(null);
+  const [triage, setTriage] = useState<TriageKey | null>(null);
   const [addUrl, setAddUrl] = useState("");
   const [addBusy, setAddBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -60,10 +75,20 @@ const App = () => {
       return [];
     }
     const q = query.trim().toLowerCase();
+    const triageMatch = TRIAGE.find((t) => t.key === triage)?.match;
     return data.series.filter(
-      (s) => (!sourceFilter || s.source === sourceFilter) && (!q || s.name.toLowerCase().includes(q))
+      (s) =>
+        (!sourceFilter || s.source === sourceFilter) &&
+        (!q || s.name.toLowerCase().includes(q)) &&
+        (!triageMatch || triageMatch(s))
     );
-  }, [data, query, sourceFilter]);
+  }, [data, query, sourceFilter, triage]);
+
+  // Counts drive whether a chip renders at all — a healthy catalog shows none.
+  const triageCounts = useMemo(
+    () => TRIAGE.map((t) => ({ ...t, count: data ? data.series.filter(t.match).length : 0 })),
+    [data]
+  );
 
   let body: ReactNode;
   if (loadError) {
@@ -134,21 +159,42 @@ const App = () => {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        {sources.length > 1 && (
+        {(sources.length > 1 || triageCounts.some((t) => t.count > 0)) && (
           <div className="chips">
-            <button className="chip" aria-pressed={sourceFilter === null} onClick={() => setSourceFilter(null)}>
+            <button
+              className="chip"
+              aria-pressed={sourceFilter === null && triage === null}
+              onClick={() => {
+                setSourceFilter(null);
+                setTriage(null);
+              }}
+            >
               All
             </button>
-            {sources.map((source) => (
-              <button
-                key={source}
-                className="chip"
-                aria-pressed={sourceFilter === source}
-                onClick={() => setSourceFilter(sourceFilter === source ? null : source)}
-              >
-                {source}
-              </button>
-            ))}
+            {sources.length > 1 &&
+              sources.map((source) => (
+                <button
+                  key={source}
+                  className="chip"
+                  aria-pressed={sourceFilter === source}
+                  onClick={() => setSourceFilter(sourceFilter === source ? null : source)}
+                >
+                  {source}
+                </button>
+              ))}
+            {triageCounts
+              .filter((t) => t.count > 0)
+              .map((t) => (
+                <button
+                  key={t.key}
+                  className="chip chip-triage"
+                  data-triage={t.key}
+                  aria-pressed={triage === t.key}
+                  onClick={() => setTriage(triage === t.key ? null : t.key)}
+                >
+                  {t.label} {t.count}
+                </button>
+              ))}
           </div>
         )}
       </header>

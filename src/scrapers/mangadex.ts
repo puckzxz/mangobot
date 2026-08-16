@@ -1,5 +1,5 @@
 import { Chapter, Relationship } from "../types/mangdaex-chapter";
-import { Scraper, ScrapeOutcome, failure, statusReason, success } from "../types/scraper";
+import { Scraper, ScrapeOutcome, SeriesMetadata, failure, statusReason, success } from "../types/scraper";
 import { SeriesSource } from "../db";
 import extractMangadexId from "../utils/extract-mangadex-id";
 import { fetchWithPolicy } from "../http";
@@ -23,22 +23,38 @@ export const pickTitle = (manga: Relationship | undefined): string | undefined =
   return titles.en ?? altTitles.find((alt) => alt.en)?.en ?? Object.values(titles).find(Boolean);
 };
 
-/** A missing cover must never drop the update — the column is nullable. */
-const fetchCover = async (id: string): Promise<string | undefined> => {
+/**
+ * One request, two answers. This endpoint already returned the manga object; the
+ * scraper read a single filename out of it and discarded `attributes.status`.
+ * A failure here must never drop the update — both fields are optional.
+ */
+const fetchCoverAndMeta = async (id: string): Promise<{ imageUrl?: string; metadata?: SeriesMetadata }> => {
   try {
-    const response = await request(`/manga/${id}?includes[]=cover_art`);
+    const response = await request(`/manga/${id}?includes[]=cover_art&includes[]=author`);
     if (!response.ok) {
-      console.error(`[mangadex] cover lookup returned ${response.status} for ${id}`);
-      return undefined;
+      console.error(`[mangadex] manga lookup returned ${response.status} for ${id}`);
+      return {};
     }
     const body = (await response.json()) as {
-      data?: { relationships?: Array<{ type: string; attributes?: { fileName?: string } }> };
+      data?: {
+        attributes?: { status?: string; lastChapter?: string | null };
+        relationships?: Array<{ type: string; attributes?: { fileName?: string; name?: string } }>;
+      };
     };
-    const fileName = body.data?.relationships?.find((r) => r.type === "cover_art")?.attributes?.fileName;
-    return fileName ? `https://uploads.mangadex.org/covers/${id}/${fileName}` : undefined;
+    const relationships = body.data?.relationships ?? [];
+    const fileName = relationships.find((r) => r.type === "cover_art")?.attributes?.fileName;
+    const lastChapter = Number(body.data?.attributes?.lastChapter);
+    return {
+      imageUrl: fileName ? `https://uploads.mangadex.org/covers/${id}/${fileName}` : undefined,
+      metadata: {
+        status: body.data?.attributes?.status,
+        chapterCount: Number.isFinite(lastChapter) && lastChapter > 0 ? lastChapter : undefined,
+        author: relationships.find((r) => r.type === "author")?.attributes?.name,
+      },
+    };
   } catch (error) {
-    console.error(`[mangadex] cover lookup failed for ${id}:`, error);
-    return undefined;
+    console.error(`[mangadex] manga lookup failed for ${id}:`, error);
+    return {};
   }
 };
 
@@ -73,6 +89,7 @@ const scraper: Scraper = {
 
     const readableAt = latest.attributes.readableAt ?? latest.attributes.publishAt;
     const publishedAt = readableAt ? new Date(readableAt) : undefined;
+    const { imageUrl, metadata } = await fetchCoverAndMeta(id);
 
     return success({
       title,
@@ -82,8 +99,9 @@ const scraper: Scraper = {
       chapterUrl: latest.attributes.externalUrl ?? `https://mangadex.org/chapter/${latest.id}`,
       seriesUrl: url,
       source: SOURCE,
-      imageUrl: await fetchCover(id),
+      imageUrl,
       publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : undefined,
+      metadata,
     });
   },
 };

@@ -4,29 +4,50 @@ import client from "../client";
 import { addSeriesToGuild, listGuildSeries, removeSeriesFromGuild, GuildSeriesEntry } from "../series-service";
 import { SUPPORTED_HOSTNAMES } from "../utils/try-to-determine-series-source";
 import { AddSeriesRequest, AddSeriesResponse, ApiError, ListSeriesResponse, SeriesDto } from "./api-types";
+import { assessCompletion } from "../series-status";
 
 /**
  * The web UI for managing the catalog. Deliberately unauthenticated — it is only
  * deployed on a private network.
  */
 
-const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null>): SeriesDto => ({
-  id: entry.series.id,
-  name: entry.series.name,
-  url: entry.series.url,
-  source: entry.series.source,
-  latestChapter: entry.series.latestChapter,
-  imageUrl: entry.series.imageUrl,
-  lastSuccessAt: entry.series.lastSuccessAt.toISOString(),
-  lastAttemptAt: entry.series.lastAttemptAt?.toISOString() ?? null,
-  consecutiveFailures: entry.series.consecutiveFailures,
-  lastFailureReason: entry.series.lastFailureReason,
-  lastFailureMessage: entry.series.lastFailureMessage,
-  latestChapterAt: entry.series.latestChapterAt?.toISOString() ?? null,
-  latestChapterPublishedAt: entry.series.latestChapterPublishedAt?.toISOString() ?? null,
-  addedAt: entry.addedAt.toISOString(),
-  subscribers: entry.subscriberIds.map((id) => ({ id, name: names.get(id) ?? null })),
-});
+const toDto = (entry: GuildSeriesEntry, names: ReadonlyMap<string, string | null>): SeriesDto => {
+  const verdict = assessCompletion(
+    {
+      upstreamStatus: entry.series.upstreamStatus,
+      latestChapterPublishedAt: entry.series.latestChapterPublishedAt,
+      sourceChapterCount: entry.series.sourceChapterCount,
+      latestChapter: entry.series.latestChapter,
+      consecutiveFailures: entry.series.consecutiveFailures,
+    },
+    new Date()
+  );
+
+  return {
+    id: entry.series.id,
+    name: entry.series.name,
+    url: entry.series.url,
+    source: entry.series.source,
+    latestChapter: entry.series.latestChapter,
+    imageUrl: entry.series.imageUrl,
+    lastSuccessAt: entry.series.lastSuccessAt.toISOString(),
+    lastAttemptAt: entry.series.lastAttemptAt?.toISOString() ?? null,
+    consecutiveFailures: entry.series.consecutiveFailures,
+    lastFailureReason: entry.series.lastFailureReason,
+    lastFailureMessage: entry.series.lastFailureMessage,
+    latestChapterAt: entry.series.latestChapterAt?.toISOString() ?? null,
+    latestChapterPublishedAt: entry.series.latestChapterPublishedAt?.toISOString() ?? null,
+    addedAt: entry.addedAt.toISOString(),
+    subscribers: entry.subscriberIds.map((id) => ({ id, name: names.get(id) ?? null })),
+    upstreamState: verdict.state,
+    upstreamStatusRaw: entry.series.upstreamStatus,
+    dormant: verdict.dormant,
+    chaptersBehind: verdict.behind,
+    looksCompleted: verdict.looksCompleted,
+    chapterTotalKnown: verdict.chapterTotalKnown,
+    author: entry.series.author,
+  };
+};
 
 /**
  * Subscriber rows store Discord user ids; the display names live with the bot.

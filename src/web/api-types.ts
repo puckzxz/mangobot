@@ -38,6 +38,22 @@ export interface SeriesDto {
   latestChapterPublishedAt: string | null;
   /** ISO timestamp of when the series was added to the guild's catalog. */
   addedAt: string;
+  /** Normalised upstream state. Triage only — it never gates scraping. */
+  upstreamState: "ongoing" | "completed" | "hiatus" | "dropped" | "unknown";
+  /** The source's own word for it, e.g. "Complete". Null until first refreshed. */
+  upstreamStatusRaw: string | null;
+  /** No new chapter upstream for 120+ days, and the scrape is healthy. */
+  dormant: boolean;
+  /** Chapters the source has that we have never announced. Null when not behind. */
+  chaptersBehind: number | null;
+  /**
+   * A recommendation to a human, never an action: the work has ended, nothing has
+   * arrived in months, and no chapters remain upstream that we have missed.
+   */
+  looksCompleted: boolean;
+  /** Whether the source publishes a chapter total, so the UI can avoid overclaiming. */
+  chapterTotalKnown: boolean;
+  author: string | null;
   subscribers: SubscriberDto[];
 }
 

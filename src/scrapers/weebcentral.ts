@@ -1,5 +1,5 @@
 import { SeriesSource } from "../db";
-import { Scraper, ScrapeOutcome, failure, statusReason, success } from "../types/scraper";
+import { Scraper, ScrapeOutcome, SeriesMetadata, failure, statusReason, success } from "../types/scraper";
 import { fetchWithPolicy, retryAfterMs } from "../http";
 import { decodeEntities } from "../utils/html-entities";
 
@@ -126,6 +126,44 @@ const buildResult = (
   publishedAt: latest.publishedAt > 0 ? new Date(latest.publishedAt) : undefined,
 });
 
+/**
+ * Status lives on the series page, not in the feed — the RSS carries no occurrence
+ * of the word at all. So this costs a second request, which is why the caller
+ * budgets who gets one rather than paying it on every series every pass.
+ *
+ * The value is read from the `included_status=` query parameter rather than the
+ * anchor text, because that is the site's own machine-readable form:
+ *   <strong>Status: </strong><a href="…/search?included_status=Complete">Complete</a>
+ */
+export const parseSeriesPage = (html: string): SeriesMetadata => {
+  const field = (label: string): string | undefined =>
+    html.match(new RegExp(`<strong>\\s*${label}:\\s*</strong>\\s*(?:<a[^>]*>)?\\s*([^<]+)`))?.[1]?.trim() || undefined;
+
+  const status = html.match(/included_status=([A-Za-z]+)/)?.[1] ?? field("Status");
+
+  return {
+    status,
+    // WeebCentral publishes no total, so Gap A is unavailable for this source.
+    chapterCount: undefined,
+    author: field("Author"),
+  };
+};
+
+const fetchMetadata = async (seriesUrl: string): Promise<SeriesMetadata | undefined> => {
+  try {
+    const response = await fetchWithPolicy(seriesUrl, { redirect: "follow" });
+    if (!response.ok) {
+      console.error(`[weebcentral] ${response.status} fetching series page for ${seriesUrl}`);
+      return undefined;
+    }
+    return parseSeriesPage(await response.text());
+  } catch (error) {
+    // Never allowed to fail the scrape — the chapter update is the job.
+    console.error(`[weebcentral] metadata fetch failed for ${seriesUrl}:`, error);
+    return undefined;
+  }
+};
+
 const scraper: Scraper = {
   requestGapMs: REQUEST_GAP_MS,
 
@@ -134,7 +172,7 @@ const scraper: Scraper = {
    * which is what allowed the browser, the sidecar subprocess and the stealth
    * plugins to be deleted outright.
    */
-  async scrapeOne(seriesUrl: string): Promise<ScrapeOutcome> {
+  async scrapeOne(seriesUrl: string, refreshMetadata = false): Promise<ScrapeOutcome> {
     const feedUrl = weebcentralRssUrl(seriesUrl);
     if (!feedUrl) {
       return failure(seriesUrl, SOURCE, "derive-url", `cannot derive a feed URL from ${seriesUrl}`);
@@ -154,7 +192,17 @@ const scraper: Scraper = {
     }
 
     const parsed = parseFeed(await response.text(), seriesUrl);
-    return parsed.ok ? success(parsed.result) : failure(seriesUrl, SOURCE, parsed.reason, parsed.detail);
+    if (!parsed.ok) {
+      return failure(seriesUrl, SOURCE, parsed.reason, parsed.detail);
+    }
+
+    if (!refreshMetadata) {
+      return success(parsed.result);
+    }
+
+    // Pace the second request like any other, so a metadata refresh cannot burst.
+    await Bun.sleep(REQUEST_GAP_MS);
+    return success({ ...parsed.result, metadata: await fetchMetadata(seriesUrl) });
   },
 };
 

@@ -11,6 +11,24 @@ export interface ScraperResult {
   imageUrl: string | undefined;
   /** When the source says the chapter was published. Absent where a source publishes no date. */
   publishedAt: Date | undefined;
+  /**
+   * Slow-changing metadata. Absent when this pass did not refresh it, which is not
+   * the same as the source having none — so a caller must leave the stored value
+   * alone rather than overwriting it with undefined.
+   */
+  metadata?: SeriesMetadata;
+}
+
+/**
+ * What a source says about the series itself, as opposed to its newest chapter.
+ * Changes on the order of months, so it is refreshed on a TTL rather than every pass.
+ */
+export interface SeriesMetadata {
+  /** Raw, unnormalised — "Complete", "ongoing", "hiatus". See src/series-status.ts. */
+  status: string | undefined;
+  /** How many chapters the source claims to have. The gap against ours is Gap A. */
+  chapterCount: number | undefined;
+  author: string | undefined;
 }
 
 /**
@@ -53,8 +71,15 @@ export type ScrapeOutcome =
     };
 
 export interface Scraper {
-  /** Never throws for an expected fault — it returns a typed failure instead. */
-  scrapeOne(url: string): Promise<ScrapeOutcome>;
+  /**
+   * Never throws for an expected fault — it returns a typed failure instead.
+   *
+   * `refreshMetadata` asks for the slow-changing fields as well. Asura and MangaDex
+   * ignore it and always include them, because both arrive inside a response the
+   * scraper already fetches. WeebCentral needs a second request for its status, so
+   * it only pays that cost when asked — the caller budgets who gets one.
+   */
+  scrapeOne(url: string, refreshMetadata?: boolean): Promise<ScrapeOutcome>;
   /** Gap the shared runner leaves between requests to this source. */
   readonly requestGapMs: number;
 }

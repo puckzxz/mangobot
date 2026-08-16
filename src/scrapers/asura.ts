@@ -1,5 +1,5 @@
 import { SeriesSource } from "../db";
-import { Scraper, ScrapeOutcome, failure, statusReason, success } from "../types/scraper";
+import { Scraper, ScrapeOutcome, SeriesMetadata, failure, statusReason, success } from "../types/scraper";
 import { fetchWithPolicy } from "../http";
 // lol-html, which backs Bun's HTMLRewriter, hands back attribute values as raw
 // source text rather than decoding entities, so `props` arrives still escaped.
@@ -78,6 +78,29 @@ export const parseChapters = (props: string): AsuraChapter[] => {
 export const readableChapters = (chapters: AsuraChapter[], now: number): AsuraChapter[] =>
   chapters.filter((c) => !c.is_locked && (!c.early_access_until || Date.parse(c.early_access_until) <= now));
 
+/**
+ * A second island on the same page carries the series' own metadata — status,
+ * total chapter count, author, artist, genres, description, rating. The scraper
+ * read only the chapter list and discarded all of it, which meant paying for a
+ * request and throwing away most of what it returned.
+ *
+ * `chapterCount` is the valuable one: the gap against what we have announced is
+ * direct evidence that chapters exist which we have not seen.
+ */
+export const parseDescription = (props: string): SeriesMetadata => {
+  const parsed = unwrapAstro(JSON.parse(decodeEntities(props))) as Record<string, unknown>;
+  const str = (key: string): string | undefined => {
+    const value = parsed[key];
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  };
+  const count = parsed.chapterCount;
+  return {
+    status: str("status"),
+    chapterCount: typeof count === "number" && Number.isFinite(count) ? count : undefined,
+    author: str("author"),
+  };
+};
+
 const scraper: Scraper = {
   requestGapMs: REQUEST_GAP_MS,
 
@@ -100,8 +123,15 @@ const scraper: Scraper = {
     let title: string | undefined;
     let imageUrl: string | undefined;
     let props: string | undefined;
+    let descriptionProps: string | undefined;
 
     await new HTMLRewriter()
+      // Same response, same pass, no extra request — see parseDescription.
+      .on('astro-island[component-url*="DescriptionModal"]', {
+        element(el) {
+          descriptionProps = el.getAttribute("props") ?? undefined;
+        },
+      })
       .on('meta[property="og:title"]', {
         element(el) {
           title = el
@@ -143,6 +173,17 @@ const scraper: Scraper = {
     const latest = readable.reduce((a, b) => (b.number > a.number ? b : a));
     const publishedAt = latest.published_at ? new Date(latest.published_at) : undefined;
 
+    // Metadata must never be able to fail the scrape — a chapter update is the job,
+    // and the status is a nice-to-have on top of it.
+    let metadata: SeriesMetadata | undefined;
+    if (descriptionProps) {
+      try {
+        metadata = parseDescription(descriptionProps);
+      } catch (error) {
+        console.error(`[asura] could not parse series metadata for ${url}:`, error);
+      }
+    }
+
     return success({
       title,
       latestChapter: String(latest.number),
@@ -152,6 +193,7 @@ const scraper: Scraper = {
       source: SOURCE,
       imageUrl,
       publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : undefined,
+      metadata,
     });
   },
 };

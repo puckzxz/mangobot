@@ -152,6 +152,14 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
  */
 let updateCheckRunning = false;
 
+/**
+ * Metadata refresh budget. At 5 per pass the 49 WeebCentral series are covered in
+ * about five hours of passes; after that the TTL keeps the steady-state cost to
+ * roughly 7 extra requests a day for the whole catalog.
+ */
+const STATUS_REFRESH_PER_PASS = 5;
+const STATUS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 const runUpdateCheck = async () => {
   if (updateCheckRunning) {
     console.warn("Previous update check is still running — skipping this tick");
@@ -167,7 +175,26 @@ const runUpdateCheck = async () => {
     const series = await prisma.series.findMany({ include: { subscription: true } });
     const guildsSeries = await prisma.guildsSeries.findMany({ include: { guild: true } });
 
-    const outcomes = await fetchManga(series.map((s) => ({ url: s.url, source: s.source })));
+    // Status changes on the order of months, and WeebCentral charges a second
+    // request for it. Refreshing the few stalest rows per pass covers the whole
+    // catalog in a handful of hours and then costs roughly nothing: once every row
+    // is inside the TTL, no row qualifies and no extra request is made.
+    const dueForMetadata = new Set(
+      (
+        await prisma.series.findMany({
+          where: {
+            OR: [{ upstreamStatusAt: null }, { upstreamStatusAt: { lt: new Date(Date.now() - STATUS_TTL_MS) } }],
+          },
+          orderBy: { upstreamStatusAt: { sort: "asc", nulls: "first" } },
+          take: STATUS_REFRESH_PER_PASS,
+          select: { id: true },
+        })
+      ).map((row) => row.id)
+    );
+
+    const outcomes = await fetchManga(
+      series.map((s) => ({ url: s.url, source: s.source, refreshMetadata: dueForMetadata.has(s.id) }))
+    );
 
     // fetchManga guarantees one outcome per requested URL, so this loop walks the
     // rows we asked about rather than the results that came back. Iterating the

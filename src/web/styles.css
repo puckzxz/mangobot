@@ -406,6 +406,37 @@ input:focus-visible {
   cursor: help;
 }
 
+/* Informational, not a problem — distinct from .card-warn on purpose. */
+.card-note {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* Upstream state, beside the source badge. Muted by default; only the states
+   that ask for a decision take colour. */
+.badge-state {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.badge-state[data-state="completed"],
+.badge-state[data-state="dropped"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip-triage[data-triage="failing"][aria-pressed="false"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.chip-triage[data-triage="failing"][aria-pressed="true"] {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
 /* ---------- page states ---------- */
 
 .state {

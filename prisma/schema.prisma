@@ -70,6 +70,23 @@ model Series {
   // series nobody can be told about looks perfectly healthy.
   deliveryFailedAt DateTime? @map("delivery_failed_at")
 
+  // What the source says about the series itself, kept raw because the two sources
+  // use different vocabularies (Complete/Canceled vs completed/hiatus/dropped).
+  // Normalised for display in src/series-status.ts.
+  //
+  // Triage only. Measured: of 22 series WeebCentral marks `Complete`, 19 received a
+  // chapter within 90 days — the field describes whether the ORIGINAL work ended,
+  // not whether this source finished translating it. It must never gate scraping.
+  upstreamStatus   String?   @map("upstream_status")
+  upstreamStatusAt DateTime? @map("upstream_status_at")
+
+  // How many chapters the source claims to have. The gap against latestChapter is
+  // direct evidence that chapters exist which we have never announced — it already
+  // caught a series sitting at 112.7 against an upstream count of 116.
+  sourceChapterCount Int? @map("source_chapter_count")
+
+  author String?
+
   // When the last new chapter was announced. Null for rows that have not had a
   // chapter since the column was added — updatedAt/lastSuccessAt cannot stand in,
   // as every 30-minute pass rewrites them for all series.

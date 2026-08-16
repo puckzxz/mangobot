@@ -37,6 +37,8 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
 
   const failing = series.consecutiveFailures > 0;
   const published = series.latestChapterPublishedAt ?? series.latestChapterAt;
+  // Only worth showing when it says something the card does not already imply.
+  const showState = series.upstreamState !== "ongoing" && series.upstreamState !== "unknown";
 
   const remove = async () => {
     setBusy(true);
@@ -78,6 +80,15 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
           <span className="badge" data-source={series.source}>
             {series.source}
           </span>
+          {showState && (
+            <span
+              className="badge badge-state"
+              data-state={series.upstreamState}
+              title={`Source says: ${series.upstreamStatusRaw}`}
+            >
+              {series.upstreamState}
+            </span>
+          )}
           <span className="chapter">
             Ch. {series.latestChapter}
             {/* Prefer the source's own publish date — latestChapterAt only says when
@@ -88,7 +99,25 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
 
         <div className="card-times">
           added {relativeTime(series.addedAt)} · checked {relativeTime(series.lastSuccessAt)}
+          {series.author && ` · ${series.author}`}
         </div>
+
+        {/* Gap A: the source has chapters we have never announced. Strong evidence a
+            series is alive whatever its status says, so it outranks the label. */}
+        {series.chaptersBehind !== null && (
+          <div className="card-note">
+            {series.chaptersBehind} chapter(s) available upstream that we have not announced
+          </div>
+        )}
+
+        {series.looksCompleted && (
+          <div className="card-note">
+            Looks finished — ended upstream, nothing new in months
+            {series.chapterTotalKnown
+              ? ", and nothing left to fetch"
+              : ". This source publishes no chapter total, so check for untranslated chapters before removing"}
+          </div>
+        )}
 
         {failing && (
           <div className="card-warn" title={series.lastFailureMessage ?? undefined}>
