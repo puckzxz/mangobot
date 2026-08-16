@@ -30,7 +30,7 @@ export interface RecordedFailure {
 export const recordFailure = async (
   series: { id: string; name: string; consecutiveFailures: number },
   failure: RecordedFailure
-): Promise<void> => {
+): Promise<{ consecutiveFailures: number; crossedThreshold: boolean }> => {
   const consecutiveFailures = series.consecutiveFailures + 1;
   const now = new Date();
 
@@ -46,11 +46,16 @@ export const recordFailure = async (
     },
   });
 
-  if (crossedAlertThreshold(failure.reason, consecutiveFailures)) {
+  const crossedThreshold = crossedAlertThreshold(failure.reason, consecutiveFailures);
+  if (crossedThreshold) {
     console.error(
       `[health] ${series.name} has failed ${consecutiveFailures}x with ${failure.reason}: ${failure.detail}`
     );
   }
+
+  // Returned rather than acted on here: this module owns the health columns, and
+  // sending a Discord message is not a database concern. The caller decides.
+  return { consecutiveFailures, crossedThreshold };
 };
 
 export interface SuccessOptions {

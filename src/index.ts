@@ -1,10 +1,12 @@
-import { Events, Guild } from "discord.js";
+import { Events, Guild, type SendableChannels } from "discord.js";
 import client from "./client";
 import prisma from "./prisma";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
 import type { ScraperResult } from "./types/scraper";
 import { recordFailure, recordSuccess } from "./scrape-recorder";
+import { wasAlerted } from "./scrape-health";
+import { type HealthEvent, buildHealthAlert } from "./health-alert";
 import { buildAnnouncement } from "./announcement";
 import { refreshAnilistTotals } from "./anilist-refresh";
 import { isDueForScrape } from "./scrape-schedule";
@@ -148,12 +150,35 @@ const runUpdateCheck = async () => {
 
         if (!outcome.ok) {
           failures.push(`${serie.name} [${outcome.reason}] ${outcome.detail}`);
-          await recordFailure(serie, outcome);
+          const { consecutiveFailures, crossedThreshold } = await recordFailure(serie, outcome);
+          if (crossedThreshold) {
+            await postHealthAlert(
+              serie,
+              {
+                kind: "failing",
+                name: serie.name,
+                consecutiveFailures,
+                reason: outcome.reason,
+                detail: outcome.detail,
+              },
+              guildsSeries
+            );
+          }
           continue;
         }
 
         succeeded++;
+
+        // Read before applyUpdate, which clears the failure axis on success. Only a
+        // series somebody was actually told about is worth an all-clear.
+        const wasBroken = wasAlerted(serie.lastFailureReason, serie.consecutiveFailures);
+        const failuresBefore = serie.consecutiveFailures;
+
         await applyUpdate(serie, outcome.result, guildsSeries);
+
+        if (wasBroken) {
+          await postHealthAlert(serie, { kind: "recovered", name: serie.name, failuresBefore }, guildsSeries);
+        }
       } catch (error) {
         failures.push(`${serie.name}: threw while applying — ${error}`);
       }
@@ -187,6 +212,62 @@ const runUpdateCheck = async () => {
 type SeriesRow = Awaited<ReturnType<typeof prisma.series.findMany<{ include: { subscription: true } }>>>[number];
 type GuildSeriesRow = Awaited<ReturnType<typeof prisma.guildsSeries.findMany<{ include: { guild: true } }>>>[number];
 
+/**
+ * Where a series should be posted, once per guild that carries it.
+ *
+ * Shared by chapter announcements and health alerts, so "which channel, and can we
+ * actually post there" has exactly one answer. A guild that resolves to nothing is
+ * skipped rather than failing the others.
+ */
+const postTargets = async (seriesId: string, seriesName: string, guildsSeries: GuildSeriesRow[]) => {
+  const targets: Array<{ guild: GuildSeriesRow["guild"]; guildId: string; channel: SendableChannels }> = [];
+
+  for (const guildSeries of guildsSeries.filter((gs) => gs.seriesId === seriesId)) {
+    const channelId = guildSeries.guild.updatesChannelId;
+    if (!channelId) {
+      console.warn(`${guildSeries.guild.name} has no updates channel — skipping ${seriesName}`);
+      continue;
+    }
+
+    try {
+      // fetch, not cache.get: the cache is cold on the first pass after a restart,
+      // and a miss looked identical to "posted successfully".
+      const channel = await client.channels.fetch(channelId);
+      if (!channel?.isTextBased() || !channel.isSendable()) {
+        console.warn(`Cannot send to ${channelId} in ${guildSeries.guild.name}`);
+        continue;
+      }
+      targets.push({ guild: guildSeries.guild, guildId: guildSeries.guildId, channel });
+    } catch (error) {
+      console.error(`Could not resolve the updates channel for ${guildSeries.guild.name}:`, error);
+    }
+  }
+
+  return targets;
+};
+
+/**
+ * Tells the server a series broke, or started working again.
+ *
+ * Cannot throw and cannot fail a pass: an alert is commentary on the work, and must
+ * never become a reason the work is recorded as failed. No mentions either — this is
+ * for whoever is looking, not something to wake anybody for.
+ */
+const postHealthAlert = async (serie: SeriesRow, event: HealthEvent, guildsSeries: GuildSeriesRow[]) => {
+  try {
+    const content = buildHealthAlert(event);
+    for (const { guild, channel } of await postTargets(serie.id, serie.name, guildsSeries)) {
+      await channel
+        .send({ content, allowedMentions: { parse: [] } })
+        .catch((error: unknown) =>
+          console.error(`Could not post a health alert for ${serie.name} in ${guild.name}:`, error)
+        );
+    }
+  } catch (error) {
+    console.error(`Health alert for ${serie.name} could not be built or sent:`, error);
+  }
+};
+
 const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries: GuildSeriesRow[]) => {
   // The caller starts from the row and hands it in, so results are matched to rows
   // by the URL we requested — never by the scraped title. Titles are mutable site
@@ -218,24 +299,10 @@ const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries
 
   let delivered = false;
 
-  for (const guildSeries of guildsSeries.filter((gs) => gs.seriesId === serie.id)) {
-    const channelId = guildSeries.guild.updatesChannelId;
-    if (!channelId) {
-      console.warn(`${guildSeries.guild.name} has no updates channel — skipping ${serie.name}`);
-      continue;
-    }
-
+  for (const { guild, guildId, channel } of await postTargets(serie.id, serie.name, guildsSeries)) {
     try {
-      // fetch, not cache.get: the cache is cold on the first pass after a restart,
-      // and a miss looked identical to "posted successfully".
-      const channel = await client.channels.fetch(channelId);
-      if (!channel?.isTextBased() || !channel.isSendable()) {
-        console.warn(`Cannot send to ${channelId} in ${guildSeries.guild.name}`);
-        continue;
-      }
-
       const mentions = serie.subscription
-        .filter((s) => s.guildId === guildSeries.guildId)
+        .filter((s) => s.guildId === guildId)
         .map((s) => `<@${s.userId}>`)
         .join(" ");
 
@@ -252,9 +319,9 @@ const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries
         })
       );
       delivered = true;
-      console.log(`Posted update for ${serie.name} in ${guildSeries.guild.name}`);
+      console.log(`Posted update for ${serie.name} in ${guild.name}`);
     } catch (error) {
-      console.error(`Failed to post ${serie.name} in ${guildSeries.guild.name}:`, error);
+      console.error(`Failed to post ${serie.name} in ${guild.name}:`, error);
     }
   }
 

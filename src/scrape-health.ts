@@ -42,3 +42,22 @@ export const ALERT_THRESHOLDS: Record<ScrapeFailureReason, number> = {
  */
 export const crossedAlertThreshold = (reason: ScrapeFailureReason, consecutiveFailures: number): boolean =>
   consecutiveFailures === ALERT_THRESHOLDS[reason];
+
+/**
+ * Whether an alert was ever raised for the state a row is currently in — asked of a
+ * failing row just before a success clears it, to decide if a recovery is worth
+ * announcing.
+ *
+ * `>=` rather than `===`, and that difference is the whole point: crossedAlertThreshold
+ * answers "alert on this pass?", this answers "was anybody ever told?". Without it a
+ * series that failed once, below its threshold, would announce that it recovered from
+ * an outage nobody heard about.
+ *
+ * Takes the raw column, which is a nullable String and can hold a reason from an older
+ * deploy — an unrecognised one means no threshold, so no alert was sent.
+ */
+export const wasAlerted = (reason: string | null | undefined, consecutiveFailures: number): boolean => {
+  if (!reason) return false;
+  const threshold = ALERT_THRESHOLDS[reason as ScrapeFailureReason];
+  return threshold !== undefined && consecutiveFailures >= threshold;
+};
