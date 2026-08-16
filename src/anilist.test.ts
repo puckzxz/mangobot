@@ -110,11 +110,28 @@ describe("lookupChapterTotal", () => {
     expect(await lookupChapterTotal("Vinland Saga", fetcher)).toBeNull();
   });
 
-  test("a thrown request yields null rather than propagating", async () => {
+  /**
+   * The distinction that matters: "AniList has no such series" is an answer worth
+   * storing, but "the request failed" is not. Folding a 429 into the null return
+   * would record a rate-limited lookup as a definitive miss and skip that series
+   * for the whole 30-day TTL.
+   */
+  test("a failed request propagates instead of masquerading as no-match", async () => {
     const fetcher = async () => {
       throw new Error("429 rate limited");
     };
-    expect(await lookupChapterTotal("Vinland Saga", fetcher)).toBeNull();
+    expect(lookupChapterTotal("Vinland Saga", fetcher)).rejects.toThrow("429");
+  });
+
+  test("pacing applies to every variant, not just the first", async () => {
+    const calls: string[] = [];
+    const fetcher = async (_q: string, v: { q: string }) => {
+      calls.push(v.q);
+      return { data: { Media: null } };
+    };
+    await lookupChapterTotal("Omniscient Reader’s Viewpoint", fetcher);
+    // Each variant is a separate doFetch call, so the caller's gap covers them all.
+    expect(calls.length).toBe(searchVariants("Omniscient Reader’s Viewpoint").length);
   });
 });
 

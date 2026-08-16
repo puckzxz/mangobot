@@ -10,7 +10,12 @@ import { USER_AGENT } from "./user-agent";
  * a slow or rate-limited AniList delays nothing that matters.
  */
 
-/** AniList allows ~30 requests/minute; a lookup may try up to four variants. */
+/**
+ * AniList allows ~30 requests/minute, and a single lookup may try up to four search
+ * variants. Pacing therefore has to be per REQUEST, not per series — five series
+ * that each need all four variants is twenty requests, which back to back would
+ * burst straight through the limit.
+ */
 const LOOKUPS_PER_PASS = 5;
 const REQUEST_GAP_MS = 2_500;
 
@@ -22,6 +27,10 @@ const REQUEST_GAP_MS = 2_500;
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const post = async (query: string, variables: { q: string }): Promise<unknown> => {
+  // Every request, variants included. At worst 20 requests * 2.5s = 50s, which is
+  // fine for work that runs after the announcements are already out.
+  await Bun.sleep(REQUEST_GAP_MS);
+
   const response = await fetch(ANILIST_ENDPOINT, {
     method: "POST",
     // Without a User-Agent AniList answers 403, so this is required rather than polite.
@@ -49,9 +58,7 @@ export const refreshAnilistTotals = async (): Promise<void> => {
 
   if (due.length === 0) return;
 
-  for (const [index, series] of due.entries()) {
-    if (index > 0) await Bun.sleep(REQUEST_GAP_MS);
-
+  for (const series of due) {
     try {
       const match = await lookupChapterTotal(series.name, post);
 
@@ -75,8 +82,11 @@ export const refreshAnilistTotals = async (): Promise<void> => {
         console.warn(`[anilist] no confident match for ${JSON.stringify(series.name)} — link it by hand if it matters`);
       }
     } catch (error) {
-      // Leave checkedAt alone so a transient failure is retried next pass.
-      console.error(`[anilist] lookup failed for ${series.name}:`, error);
+      // Deliberately leaves anilistCheckedAt untouched, so a rate limit or a network
+      // blip is retried next pass rather than being recorded as "no such series".
+      // This is why lookupChapterTotal propagates request failures instead of
+      // folding them into its null return.
+      console.error(`[anilist] lookup failed for ${series.name}, will retry:`, error);
     }
   }
 };

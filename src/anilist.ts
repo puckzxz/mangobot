@@ -132,24 +132,23 @@ export const scoreMedia = (
 };
 
 /**
- * Returns the best confident match, or null.
+ * Returns the best confident match, or null when AniList genuinely has nothing.
  *
- * Null is a real answer — it is stored as "checked, no match" so the lookup is not
- * retried every pass. A missing User-Agent gets a 403 from AniList, so
- * fetchWithPolicy's header is required rather than merely polite.
+ * Null means "asked, no match" — a real answer the caller stores so an unmatchable
+ * title is not retried forever. A failing REQUEST is different and must not be
+ * laundered into that answer, so it propagates: swallowing it here would record a
+ * rate-limited lookup as a definitive miss and skip that series for the whole TTL.
+ *
+ * `doFetch` owns pacing, so the gap applies to every request including the retries
+ * across variants — a title needing all four would otherwise fire them back to back
+ * and, five series to a pass, burst straight through AniList's ~30/min.
  */
 export const lookupChapterTotal = async (
   ourTitle: string,
   doFetch: (query: string, variables: { q: string }) => Promise<unknown>
 ): Promise<AnilistMatch | null> => {
   for (const variant of searchVariants(ourTitle)) {
-    let body: MediaResponse;
-    try {
-      body = (await doFetch(QUERY, { q: variant })) as MediaResponse;
-    } catch (error) {
-      console.error(`[anilist] lookup failed for ${JSON.stringify(variant)}:`, error);
-      return null;
-    }
+    const body = (await doFetch(QUERY, { q: variant })) as MediaResponse;
 
     const media = body?.data?.Media;
     if (!media) continue; // AniList answers 404 for "no match"; try the next variant
