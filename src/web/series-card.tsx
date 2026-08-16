@@ -106,7 +106,8 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
             series is alive whatever its status says, so it outranks the label. */}
         {series.chaptersBehind !== null && (
           <div className="card-note">
-            {series.chaptersBehind} chapter(s) available upstream that we have not announced
+            {series.chaptersBehind} more chapter(s) exist upstream — often early-access, which AsuraScans time-gates and
+            the scraper deliberately skips until it unlocks
           </div>
         )}
 

@@ -5,6 +5,7 @@ import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
 import type { ScraperResult } from "./types/scraper";
 import { recordFailure, recordSuccess } from "./scrape-recorder";
+import { buildAnnouncement } from "./announcement";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
@@ -302,7 +303,18 @@ const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries
         .map((s) => `<@${s.userId}>`)
         .join(" ");
 
-      await channel.send(`New chapter of ${serie.name} is out! ${update.chapterUrl}\n${mentions}`.trim());
+      await channel.send(
+        buildAnnouncement({
+          seriesName: serie.name,
+          seriesUrl: serie.url,
+          source: serie.source,
+          chapter: update.latestChapter,
+          chapterUrl: update.chapterUrl,
+          imageUrl: update.imageUrl ?? serie.imageUrl,
+          mentions,
+          publishedAt: update.publishedAt ?? null,
+        })
+      );
       delivered = true;
       console.log(`Posted update for ${serie.name} in ${guildSeries.guild.name}`);
     } catch (error) {
