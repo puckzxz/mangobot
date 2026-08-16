@@ -1,6 +1,11 @@
 import { Command } from "../types/command";
 import { addSeriesToGuild } from "../series-service";
 
+/** Makes an unhandled result reason a compile error rather than a wrong reply. */
+const assertNever = (value: never): never => {
+  throw new Error(`Unhandled add result: ${JSON.stringify(value)}`);
+};
+
 const command: Command = {
   name: "add",
   description: "Add a manga to the database",
@@ -14,7 +19,7 @@ const command: Command = {
 
     const url = args?.[0];
     if (!url) {
-      channel.send("Please provide a url");
+      await channel.send("Please provide a url");
       return;
     }
 
@@ -25,22 +30,25 @@ const command: Command = {
     if (!result.ok) {
       switch (result.reason) {
         case "unsupported-url":
-          channel.send("Could not determine source");
+          await channel.send("Could not determine source");
           return;
         case "scrape-failed":
-          channel.send("Something went wrong");
+          await channel.send(`Could not read that series from its source — ${result.detail}`);
           return;
         case "name-conflict":
-          channel.send(
+          await channel.send(
             result.conflictingSeries
               ? `That title already belongs to a different series: <${result.conflictingSeries.url}>`
               : "That title already belongs to a different series"
           );
           return;
+        default:
+          // A new AddSeriesResult reason must not fall through to "Added".
+          return assertNever(result);
       }
     }
 
-    message.edit(`Added <${url}> to the database`);
+    await message.edit(`Added <${url}> to the database`);
   },
 };
 

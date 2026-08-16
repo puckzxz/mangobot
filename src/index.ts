@@ -3,6 +3,7 @@ import client from "./client";
 import prisma from "./prisma";
 import schedule from "node-schedule";
 import fetchManga from "./fetch-manga";
+import type { ScraperResult } from "./types/scraper";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
@@ -157,23 +158,59 @@ const runUpdateCheck = async () => {
   }
   updateCheckRunning = true;
 
+  const startedAt = Date.now();
+
   try {
     console.log(`Checking for updates at ${new Date().toISOString()}`);
 
     const series = await prisma.series.findMany({ include: { subscription: true } });
     const guildsSeries = await prisma.guildsSeries.findMany({ include: { guild: true } });
 
-    const updates = await fetchManga(series.map((s) => ({ url: s.url, source: s.source })));
+    const outcomes = await fetchManga(series.map((s) => ({ url: s.url, source: s.source })));
 
-    for (const update of updates) {
+    // fetchManga guarantees one outcome per requested URL, so this loop walks the
+    // rows we asked about rather than the results that came back. Iterating the
+    // results is what made a failing series invisible: it fell out of the loop
+    // entirely, no column was written, and nothing counted it.
+    const byUrl = new Map(outcomes.map((outcome) => [outcome.seriesUrl, outcome]));
+
+    let succeeded = 0;
+    const failures: string[] = [];
+
+    for (const serie of series) {
+      const outcome = byUrl.get(serie.url);
+
       try {
-        await applyUpdate(update, series, guildsSeries);
+        if (!outcome) {
+          // reconcileOutcomes should make this unreachable; treat it as a fault
+          // rather than trusting it.
+          failures.push(`${serie.name}: no outcome returned`);
+          continue;
+        }
+
+        if (!outcome.ok) {
+          failures.push(`${serie.name} [${outcome.reason}] ${outcome.detail}`);
+          continue;
+        }
+
+        succeeded++;
+        await applyUpdate(serie, outcome.result, guildsSeries);
       } catch (error) {
-        console.error(`Failed to apply update for ${update.title}:`, error);
+        failures.push(`${serie.name}: threw while applying — ${error}`);
       }
     }
 
-    console.log(`Finished checking for updates at ${new Date().toISOString()}`);
+    const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.log(`Pass complete in ${seconds}s — checked=${series.length} ok=${succeeded} failed=${failures.length}`);
+
+    // The names matter more than the count: "6 failed" is not actionable, and this
+    // is the only place a human learns a series has stopped working at all.
+    for (const line of failures.slice(0, 15)) {
+      console.error(`  [failed] ${line}`);
+    }
+    if (failures.length > 15) {
+      console.error(`  [failed] …and ${failures.length - 15} more`);
+    }
   } catch (error) {
     console.error("Update check failed:", error);
   } finally {
@@ -184,19 +221,11 @@ const runUpdateCheck = async () => {
 type SeriesRow = Awaited<ReturnType<typeof prisma.series.findMany<{ include: { subscription: true } }>>>[number];
 type GuildSeriesRow = Awaited<ReturnType<typeof prisma.guildsSeries.findMany<{ include: { guild: true } }>>>[number];
 
-const applyUpdate = async (
-  update: Awaited<ReturnType<typeof fetchManga>>[number],
-  series: SeriesRow[],
-  guildsSeries: GuildSeriesRow[]
-) => {
-  // Joined on the URL we asked for, not on the scraped title. Titles are mutable
-  // site text: a re-romanisation froze "MAD (OOTORI Yuusuke)" at chapter 36, and an
+const applyUpdate = async (serie: SeriesRow, update: ScraperResult, guildsSeries: GuildSeriesRow[]) => {
+  // The caller starts from the row and hands it in, so results are matched to rows
+  // by the URL we requested — never by the scraped title. Titles are mutable site
+  // text: a re-romanisation froze "MAD (OOTORI Yuusuke)" at chapter 36, and an
   // appended word froze another at 212, both silently and both permanently.
-  const serie = series.find((s) => s.url === update.seriesUrl);
-  if (!serie) {
-    console.error(`No series row for ${update.seriesUrl} (scraped as ${JSON.stringify(update.title)})`);
-    return;
-  }
 
   // Parse float here since sometimes we'll have partial chapters
   // For example we'll have 97, 98, **98.5**, 99, 100 - so we need to parse

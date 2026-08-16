@@ -1,11 +1,12 @@
 import { SeriesSource } from "../db";
-import { ScraperResult } from "../types/scraper";
-import { USER_AGENT } from "../user-agent";
+import { Scraper, ScrapeOutcome, failure, statusReason, success } from "../types/scraper";
+import { fetchWithPolicy } from "../http";
 // lol-html, which backs Bun's HTMLRewriter, hands back attribute values as raw
 // source text rather than decoding entities, so `props` arrives still escaped.
 import { decodeEntities } from "../utils/html-entities";
 
 const SITE = "https://asurascans.com";
+const SOURCE = SeriesSource.AsuraScans;
 
 /**
  * Asura suffixes comic URLs with a global build hash (`…/comics/<slug>-00dcbf97`)
@@ -34,6 +35,8 @@ interface AsuraChapter {
   number: number;
   is_locked: boolean;
   early_access_until: string | null;
+  /** Asura publishes this on every chapter; it is what dates our history. */
+  published_at?: string | null;
 }
 
 /**
@@ -41,7 +44,7 @@ interface AsuraChapter {
  * array and anything else wraps a scalar or object. Unwrapping recursively hands
  * back plain JSON.
  */
-const unwrapAstro = (node: unknown): unknown => {
+export const unwrapAstro = (node: unknown): unknown => {
   if (Array.isArray(node) && node.length === 2 && typeof node[0] === "number") {
     const [tag, value] = node;
     return tag === 1 && Array.isArray(value) ? value.map(unwrapAstro) : unwrapAstro(value);
@@ -58,7 +61,7 @@ const unwrapAstro = (node: unknown): unknown => {
  * out of the rendered DOM — and it carries the gating flags, which the markup does
  * not expose directly.
  */
-const parseChapters = (props: string): AsuraChapter[] => {
+export const parseChapters = (props: string): AsuraChapter[] => {
   const parsed = unwrapAstro(JSON.parse(decodeEntities(props))) as { chapters?: unknown };
   if (!Array.isArray(parsed.chapters)) return [];
   return parsed.chapters.filter(
@@ -66,96 +69,91 @@ const parseChapters = (props: string): AsuraChapter[] => {
   );
 };
 
-const scrapeOne = async (url: string): Promise<ScraperResult | null> => {
-  const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, redirect: "follow" });
-  if (!response.ok) {
-    console.error(`[asura] ${response.status} for ${url} (landed on ${response.url})`);
-    return null;
-  }
+/**
+ * Announce the newest chapter a reader can actually open. Early access expires on
+ * a timestamp, so a paid chapter becomes free later rather than staying hidden —
+ * the old scraper bailed on the whole series when the newest was gated, which
+ * permanently skipped any free chapter released alongside it.
+ */
+export const readableChapters = (chapters: AsuraChapter[], now: number): AsuraChapter[] =>
+  chapters.filter((c) => !c.is_locked && (!c.early_access_until || Date.parse(c.early_access_until) <= now));
 
-  let title: string | undefined;
-  let imageUrl: string | undefined;
-  let props: string | undefined;
+const scraper: Scraper = {
+  requestGapMs: REQUEST_GAP_MS,
 
-  await new HTMLRewriter()
-    .on('meta[property="og:title"]', {
-      element(el) {
-        title = el
-          .getAttribute("content")
-          ?.replace(/\s*\|\s*Asura Scans\s*$/, "")
-          .trim();
-      },
-    })
-    .on('meta[property="og:image"]', {
-      element(el) {
-        imageUrl = el.getAttribute("content") ?? undefined;
-      },
-    })
-    // The bundle filename carries a content hash that changes on every deploy, so
-    // match on the component name rather than the full component-url.
-    .on('astro-island[component-url*="ChapterListReact"]', {
-      element(el) {
-        props = el.getAttribute("props") ?? undefined;
-      },
-    })
-    .transform(response)
-    .text();
-
-  if (!title || !props) {
-    console.error(`[asura] page loaded but ${!title ? "title" : "chapter list"} was missing: ${url}`);
-    return null;
-  }
-
-  // Announce the newest chapter a reader can actually open. Early access expires on
-  // a timestamp, so a paid chapter becomes free later rather than staying hidden —
-  // the old scraper bailed on the whole series when the newest was gated, which
-  // permanently skipped any free chapter released alongside it.
-  const now = Date.now();
-  const readable = parseChapters(props).filter(
-    (c) => !c.is_locked && (!c.early_access_until || Date.parse(c.early_access_until) <= now)
-  );
-
-  if (readable.length === 0) {
-    console.error(`[asura] no readable chapters for ${url}`);
-    return null;
-  }
-
-  const latest = readable.reduce((a, b) => (b.number > a.number ? b : a));
-
-  return {
-    title,
-    latestChapter: String(latest.number),
-    // The requested URL, not a value reconstructed by index lookup afterwards.
-    seriesUrl: url,
-    chapterUrl: `${url}/chapter/${latest.number}`,
-    source: SeriesSource.AsuraScans,
-    imageUrl,
-  };
-};
-
-export default {
   /**
    * Plain HTTP — Asura server-renders everything we need, so this no longer runs in
-   * the puppeteer sidecar. One failing URL logs and is skipped; it no longer
-   * abandons the rest of the batch.
+   * the puppeteer sidecar.
    */
-  async scrape(urls: string[]): Promise<ScraperResult[]> {
-    const results: ScraperResult[] = [];
-
-    for (const [index, url] of urls.entries()) {
-      if (index > 0) await Bun.sleep(REQUEST_GAP_MS);
-      try {
-        const result = await scrapeOne(url);
-        if (result) results.push(result);
-      } catch (error) {
-        console.error(`[asura] failed to scrape ${url}:`, error);
-      }
+  async scrapeOne(url: string): Promise<ScrapeOutcome> {
+    const response = await fetchWithPolicy(url, { redirect: "follow" });
+    if (!response.ok) {
+      return failure(
+        url,
+        SOURCE,
+        statusReason(response.status),
+        `${response.status} for ${url} (landed on ${response.url})`,
+        response.status
+      );
     }
 
-    if (urls.length > 0 && results.length === 0) {
-      console.error(`[asura] returned 0 results for ${urls.length} URLs — the site contract has probably changed`);
+    let title: string | undefined;
+    let imageUrl: string | undefined;
+    let props: string | undefined;
+
+    await new HTMLRewriter()
+      .on('meta[property="og:title"]', {
+        element(el) {
+          title = el
+            .getAttribute("content")
+            ?.replace(/\s*\|\s*Asura Scans\s*$/, "")
+            .trim();
+        },
+      })
+      .on('meta[property="og:image"]', {
+        element(el) {
+          imageUrl = el.getAttribute("content") ?? undefined;
+        },
+      })
+      // The bundle filename carries a content hash that changes on every deploy, so
+      // match on the component name rather than the full component-url.
+      .on('astro-island[component-url*="ChapterListReact"]', {
+        element(el) {
+          props = el.getAttribute("props") ?? undefined;
+        },
+      })
+      .transform(response)
+      .text();
+
+    if (!title || !props) {
+      return failure(url, SOURCE, "parse", `page loaded but ${!title ? "title" : "chapter list"} was missing`);
     }
 
-    return results;
+    let readable: AsuraChapter[];
+    try {
+      readable = readableChapters(parseChapters(props), Date.now());
+    } catch (error) {
+      return failure(url, SOURCE, "parse", `chapter props did not parse: ${String(error).slice(0, 200)}`);
+    }
+
+    if (readable.length === 0) {
+      return failure(url, SOURCE, "empty", "no readable chapters (all locked or in early access)");
+    }
+
+    const latest = readable.reduce((a, b) => (b.number > a.number ? b : a));
+    const publishedAt = latest.published_at ? new Date(latest.published_at) : undefined;
+
+    return success({
+      title,
+      latestChapter: String(latest.number),
+      // The requested URL, not a value reconstructed by index lookup afterwards.
+      seriesUrl: url,
+      chapterUrl: `${url}/chapter/${latest.number}`,
+      source: SOURCE,
+      imageUrl,
+      publishedAt: publishedAt && !Number.isNaN(publishedAt.getTime()) ? publishedAt : undefined,
+    });
   },
 };
+
+export default scraper;

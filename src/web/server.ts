@@ -123,7 +123,9 @@ export const startWebServer = () => {
                   400
                 );
               case "scrape-failed":
-                return apiError("Could not fetch that series from its source — check the URL", 502);
+                // The reason comes from the scraper now, so a blocked source and a
+                // mistyped URL no longer read identically.
+                return apiError(`Could not fetch that series from its source — ${result.detail}`, 502);
               case "name-conflict":
                 return apiError(
                   result.conflictingSeries

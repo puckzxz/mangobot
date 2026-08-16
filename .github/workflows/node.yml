@@ -16,23 +16,33 @@ jobs:
       # Reads the pnpm version from package.json's `packageManager` field.
       - uses: pnpm/action-setup@v4
 
-      # Node 20 matches the ghcr.io/puppeteer/puppeteer:22.15.0 base image, so CI
-      # catches anything that would break in the container.
+      # Node 22 matches the node:22-slim base image in the Dockerfile, so CI catches
+      # anything that would break in the container. Node only hosts the Prisma CLI.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: pnpm
+
+      # Pinned to the same version the Dockerfile lifts the binary from, because the
+      # tests exercise Bun-specific APIs (HTMLRewriter, Bun.sleep, bun:test).
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
 
       - run: pnpm install --frozen-lockfile
       # Prisma 7 no longer generates on install, and nothing typechecks without it.
       - run: pnpm run generate
       - run: pnpm run typecheck
       - run: pnpm run format:check
+      # Pure units only — no database, no network. See src/**/*.test.ts.
+      - run: pnpm run test
 
   # The Dockerfile is the only thing that proves the deploy still assembles, and it
   # can't be built on the maintainer's machine. CI is the only place this runs.
   image:
     runs-on: ubuntu-latest
+    # A red typecheck or a failing test should not burn a full buildx run.
+    needs: build
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

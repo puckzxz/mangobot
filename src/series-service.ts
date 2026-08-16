@@ -13,7 +13,8 @@ import { updateCatalog } from "./update-catalog";
 
 export type AddSeriesResult =
   | { ok: true; series: Series; addedAt: Date; alreadyInCatalog: boolean }
-  | { ok: false; reason: "unsupported-url" | "scrape-failed" }
+  | { ok: false; reason: "unsupported-url" }
+  | { ok: false; reason: "scrape-failed"; detail: string }
   | { ok: false; reason: "name-conflict"; conflictingSeries: { name: string; url: string } | null };
 
 export type RemoveSeriesResult =
@@ -34,17 +35,23 @@ export const addSeriesToGuild = async (guildId: string, url: string): Promise<Ad
     return { ok: false, reason: "unsupported-url" };
   }
 
-  const [scraped] = await fetchManga([{ url, source }]);
-  if (!scraped) {
-    return { ok: false, reason: "scrape-failed" };
+  const [outcome] = await fetchManga([{ url, source }]);
+  if (!outcome || !outcome.ok) {
+    // Carry the reason through so the caller can say *why* instead of the blanket
+    // "something went wrong" both surfaces used to show.
+    return {
+      ok: false,
+      reason: "scrape-failed",
+      detail: outcome ? `${outcome.reason}: ${outcome.detail}` : "the scraper returned no outcome",
+    };
   }
 
-  const { title, latestChapter, seriesUrl, imageUrl } = scraped;
+  const { title, latestChapter, seriesUrl, imageUrl } = outcome.result;
   const fields = {
     name: title,
     latestChapter,
     sourceId: extractMangadexId(seriesUrl),
-    source: scraped.source,
+    source: outcome.result.source,
     imageUrl,
   };
 
