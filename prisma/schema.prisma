@@ -87,6 +87,18 @@ model Series {
 
   author String?
 
+  // What the ORIGINAL work has, from AniList — a different question from
+  // sourceChapterCount, which is what THIS SOURCE has. The gap here means the
+  // source has not translated everything yet (the Uma Musume case), and it is the
+  // only way to answer that for WeebCentral, which publishes no total of its own.
+  //
+  // anilistCheckedAt set with anilistId null means "looked, found no confident
+  // match" — so a miss is not retried every pass.
+  anilistId        Int?      @map("anilist_id")
+  anilistTitle     String?   @map("anilist_title")
+  anilistChapters  Int?      @map("anilist_chapters")
+  anilistCheckedAt DateTime? @map("anilist_checked_at")
+
   // When the last new chapter was announced. Null for rows that have not had a
   // chapter since the column was added — updatedAt/lastSuccessAt cannot stand in,
   // as every 30-minute pass rewrites them for all series.

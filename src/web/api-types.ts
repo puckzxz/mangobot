@@ -46,6 +46,10 @@ export interface SeriesDto {
   dormant: boolean;
   /** Chapters the source has that we have never announced. Null when not behind. */
   chaptersBehind: number | null;
+  /** Chapters the original work has that this source never translated. */
+  untranslated: number | null;
+  /** What AniList matched this title to, so a wrong match is visible. */
+  anilistTitle: string | null;
   /**
    * A recommendation to a human, never an action: the work has ended, nothing has
    * arrived in months, and no chapters remain upstream that we have missed.

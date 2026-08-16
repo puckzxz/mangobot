@@ -6,6 +6,7 @@ import fetchManga from "./fetch-manga";
 import type { ScraperResult } from "./types/scraper";
 import { recordFailure, recordSuccess } from "./scrape-recorder";
 import { buildAnnouncement } from "./announcement";
+import { refreshAnilistTotals } from "./anilist-refresh";
 import { emojiNumbers } from "./emoji";
 import { commandsByName } from "./commands";
 import { parseCatalogLine } from "./catalog-line";
@@ -229,6 +230,10 @@ const runUpdateCheck = async () => {
         failures.push(`${serie.name}: threw while applying — ${error}`);
       }
     }
+
+    // After the announcements, never before: AniList is not a chapter source and
+    // must not sit in the path that delivers one.
+    await refreshAnilistTotals().catch((error) => console.error("AniList refresh failed:", error));
 
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(`Pass complete in ${seconds}s — checked=${series.length} ok=${succeeded} failed=${failures.length}`);

@@ -14,6 +14,8 @@
  * triage — a label that tells a human where to look.
  */
 
+import { untranslatedChapters } from "./anilist";
+
 /** Normalised across two sources that use different words for the same thing. */
 export type UpstreamState = "ongoing" | "completed" | "hiatus" | "dropped" | "unknown";
 
@@ -82,7 +84,10 @@ export const chaptersBehind = (sourceChapterCount: number | null | undefined, la
 export interface CompletionInput {
   upstreamStatus: string | null | undefined;
   latestChapterPublishedAt: Date | null | undefined;
+  /** What THIS SOURCE has. A gap means we are lagging behind it. */
   sourceChapterCount: number | null | undefined;
+  /** What the ORIGINAL WORK has. A gap means the source has not translated it all. */
+  anilistChapters: number | null | undefined;
   latestChapter: string;
   consecutiveFailures: number;
 }
@@ -91,23 +96,21 @@ export interface CompletionVerdict {
   state: UpstreamState;
   dormant: boolean;
   behind: number | null;
+  /** Chapters the source has never translated, from AniList. Distinct from `behind`. */
+  untranslated: number | null;
   /**
-   * A prompt for a human to look, never an action, and never a claim that the
-   * series is definitely finished.
+   * A prompt for a human to look, never an action.
    *
-   * KNOWN BLIND SPOT: the `behind === null` guard only bites where the source
-   * publishes a chapter total. AsuraScans does; WeebCentral does not, so for 49 of
-   * 79 series this reduces to "ended upstream and silent for months" with nothing
-   * verifying that no chapters remain. Measured against AniList, Vinland Saga
-   * (220 of 224) and Uma Musume (210 of 211) both flag here despite having
-   * untranslated chapters left.
+   * Requires BOTH gaps to be closed: nothing left on the source, and nothing left
+   * in the original work. AniList supplies the second for WeebCentral, which
+   * publishes no total of its own — without it Vinland Saga (220 of 224) and Uma
+   * Musume (210 of 211) both flagged despite having untranslated chapters.
    *
-   * That is survivable because nothing acts on this — scraping continues either
-   * way and removal is a human decision. Closing it properly needs a chapter total
-   * for WeebCentral series, which only a third-party index can supply.
+   * Still only a prompt. Nothing acts on it, scraping continues regardless, and
+   * removal remains a human decision.
    */
   looksCompleted: boolean;
-  /** Whether `behind` was actually checkable, so callers can avoid overclaiming. */
+  /** Whether either total was actually checkable, so callers avoid overclaiming. */
   chapterTotalKnown: boolean;
 }
 
@@ -120,12 +123,22 @@ export const assessCompletion = (input: CompletionInput, now: Date): CompletionV
   // the health view rather than here.
   const dormant = input.consecutiveFailures === 0 && isDormant(input.latestChapterPublishedAt, now);
 
+  const untranslated = untranslatedChapters(input.anilistChapters, input.latestChapter);
+
   const looksCompleted =
     (state === "completed" || state === "dropped") &&
     dormant &&
-    // The Uma Musume guard: chapters still exist upstream that we have not
-    // announced, so the work being finished says nothing about this URL being done.
-    behind === null;
+    // The source has nothing we have missed...
+    behind === null &&
+    // ...and the work itself has nothing the source never translated.
+    untranslated === null;
 
-  return { state, dormant, behind, looksCompleted, chapterTotalKnown: !!input.sourceChapterCount };
+  return {
+    state,
+    dormant,
+    behind,
+    untranslated,
+    looksCompleted,
+    chapterTotalKnown: !!input.sourceChapterCount || !!input.anilistChapters,
+  };
 };

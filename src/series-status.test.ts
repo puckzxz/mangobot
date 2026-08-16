@@ -72,6 +72,7 @@ describe("assessCompletion", () => {
     upstreamStatus: "Complete",
     latestChapterPublishedAt: daysAgo(400),
     sourceChapterCount: null,
+    anilistChapters: null,
     latestChapter: "220",
     consecutiveFailures: 0,
   };
@@ -80,15 +81,39 @@ describe("assessCompletion", () => {
     expect(assessCompletion(base, NOW).looksCompleted).toBe(true);
   });
 
-  /**
-   * The Uma Musume case, and the reason this is not a one-line status check.
-   * Japanese publication finished while the English translation sat at ~50 of ~180.
-   * The work being over says nothing about this URL being done.
-   */
-  test("does NOT look finished while chapters remain upstream", () => {
+  /** The source itself still has chapters we never announced. */
+  test("does NOT look finished while chapters remain on the source", () => {
     const verdict = assessCompletion({ ...base, sourceChapterCount: 224, latestChapter: "220" }, NOW);
     expect(verdict.behind).toBe(4);
     expect(verdict.looksCompleted).toBe(false);
+  });
+
+  /**
+   * The Uma Musume case, and the reason a source total is not enough. Japanese
+   * publication finished while the English translation sat at ~50 of ~180.
+   * WeebCentral publishes no total at all, so only AniList can catch this — and
+   * without it Vinland Saga (220 of 224) flagged as finished.
+   */
+  test("does NOT look finished while the work has untranslated chapters", () => {
+    const verdict = assessCompletion({ ...base, anilistChapters: 224, latestChapter: "220" }, NOW);
+    expect(verdict.behind).toBeNull();
+    expect(verdict.untranslated).toBe(4);
+    expect(verdict.looksCompleted).toBe(false);
+  });
+
+  test("looks finished only once BOTH gaps are closed", () => {
+    const verdict = assessCompletion({ ...base, sourceChapterCount: 220, anilistChapters: 220 }, NOW);
+    expect(verdict.behind).toBeNull();
+    expect(verdict.untranslated).toBeNull();
+    expect(verdict.looksCompleted).toBe(true);
+    expect(verdict.chapterTotalKnown).toBe(true);
+  });
+
+  /** Two of eighteen real AniList totals were plainly wrong (1 chapter vs 276). */
+  test("an AniList total below what we already have is ignored, not believed", () => {
+    const verdict = assessCompletion({ ...base, anilistChapters: 1, latestChapter: "220" }, NOW);
+    expect(verdict.untranslated).toBeNull();
+    expect(verdict.looksCompleted).toBe(true);
   });
 
   /**

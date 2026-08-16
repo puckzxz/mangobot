@@ -111,12 +111,21 @@ export const SeriesCard = ({ series, onRemoved }: Props) => {
           </div>
         )}
 
+        {series.untranslated !== null && (
+          <div
+            className="card-note"
+            title={series.anilistTitle ? `Matched to "${series.anilistTitle}" on AniList` : undefined}
+          >
+            {series.untranslated} chapter(s) of the original are not translated here yet
+          </div>
+        )}
+
         {series.looksCompleted && (
           <div className="card-note">
             Looks finished — ended upstream, nothing new in months
             {series.chapterTotalKnown
               ? ", and nothing left to fetch"
-              : ". This source publishes no chapter total, so check for untranslated chapters before removing"}
+              : ". No chapter total is known for this title, so check before removing"}
           </div>
         )}
 
